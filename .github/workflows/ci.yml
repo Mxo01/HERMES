@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Raspberry Pi OS Bookworm ships 3.11 — test against what we deploy to.
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements-dev.txt
+
+      - name: Type check
+        working-directory: backend
+        run: mypy hermes app.py wsgi.py
+
+      - name: Test
+        working-directory: backend
+        run: pytest
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Type check
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard
+          path: frontend/dist
+          retention-days: 1
+
+  firmware:
+    name: Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Compile every node type
+        working-directory: firmware
+        run: |
+          # All three boards share one source file; a change that only breaks
+          # the DHT nodes must not slip through because node 1 still builds.
+          for node in 1 2 3; do
+            echo "::group::NODE_TYPE $node"
+            sed -i "s/^#define NODE_TYPE .*/#define NODE_TYPE $node/" src/main.cpp
+            pio run
+            echo "::endgroup::"
+          done
+          git checkout src/main.cpp
+
+  release:
+    name: Release
+    needs: [backend, frontend, firmware]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dashboard
+          path: frontend/dist
+
+      - name: Assemble the release
+        id: package
+        run: |
+          TAG="v${{ github.run_number }}-$(git rev-parse --short HEAD)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          # The Pi never builds anything: it receives the backend source, the
+          # compiled dashboard and the deploy scripts, nothing else.
+          tar -czf "hermes-$TAG.tar.gz" \
+            --exclude='__pycache__' \
+            --exclude='.mypy_cache' \
+            --exclude='.pytest_cache' \
+            --exclude='venv' \
+            --exclude='*.db' \
+            --exclude='*.db-wal' \
+            --exclude='*.db-shm' \
+            --exclude='.env' \
+            backend frontend/dist deploy
+
+          sha256sum "hermes-$TAG.tar.gz" > "hermes-$TAG.tar.gz.sha256"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.package.outputs.tag }}" \
+            "hermes-${{ steps.package.outputs.tag }}.tar.gz" \
+            "hermes-${{ steps.package.outputs.tag }}.tar.gz.sha256" \
+            --title "${{ steps.package.outputs.tag }}" \
+            --notes "Automated release from ${{ github.sha }}.
+
+          The Raspberry Pi picks this up within a few minutes via hermes-update.timer."

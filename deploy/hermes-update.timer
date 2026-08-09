@@ -1,0 +1,14 @@
+[Unit]
+Description=Check for a new HERMES release every few minutes
+Documentation=https://github.com/Mxo01/HERMES
+
+[Timer]
+# Shortly after boot, so a Pi that was off catches up on its own.
+OnBootSec=3min
+OnUnitActiveSec=5min
+# Spread the GitHub API calls out a little rather than hitting it on the dot.
+RandomizedDelaySec=60
+Persistent=true
+
+[Install]
+WantedBy=timers.target

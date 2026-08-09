@@ -1,0 +1,44 @@
+[Unit]
+Description=HERMES home environmental monitoring
+Documentation=https://github.com/Mxo01/HERMES
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=hermes
+Group=hermes
+
+# `current` is a symlink flipped atomically by the updater, so a restart always
+# picks up whichever release is live at that moment.
+WorkingDirectory=/opt/hermes/current/backend
+EnvironmentFile=/opt/hermes/shared/hermes.env
+ExecStart=/opt/hermes/venv/bin/gunicorn -c gunicorn.conf.py wsgi:app
+
+Restart=always
+RestartSec=5
+# Give up only after repeated rapid failures, so a bad release surfaces in the
+# journal instead of thrashing the SD card forever.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# The database and any writable state live under shared/; everything else the
+# service touches is read-only.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/opt/hermes/shared
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hermes
+
+[Install]
+WantedBy=multi-user.target

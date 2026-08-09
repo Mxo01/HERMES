@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Python
+backend/**/__pycache__/
+backend/venv/
+backend/.mypy_cache/
+backend/.pytest_cache/
+*.db
+*.db-wal
+*.db-shm
+
+# React / Node
+frontend/node_modules/
+frontend/dist/
+
+# PlatformIO
+firmware/.pio/
+
+# Arduino / Secrets
+*.env
+!**/.env.example
+firmware/**/secrets.h

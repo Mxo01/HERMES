@@ -1,0 +1,15 @@
+[Unit]
+Description=Check for and install a new HERMES release
+Documentation=https://github.com/Mxo01/HERMES
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Runs as root because it restarts hermes.service and writes into /opt/hermes.
+ExecStart=/opt/hermes/bin/update.sh
+TimeoutStartSec=1800
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hermes-update
