@@ -174,10 +174,20 @@ class SqliteAlarmRepository:
         return int(row['total'])
 
     def counts_by_day(
-        self, start: datetime.date, end: datetime.date, room: str | None
+        self,
+        start: datetime.date,
+        end: datetime.date,
+        room: str | None,
+        offset_minutes: int = 0,
     ) -> dict[datetime.date, int]:
+        """Alarms per day, bucketed with the same offset the readings use.
+
+        Without it an alarm just after local midnight lands on the previous
+        UTC day and shows up against the wrong row of the day-by-day table.
+        """
+        shift = f'{offset_minutes:+d} minutes'
         clause = ''
-        params: list[Any] = [start.isoformat(), end.isoformat()]
+        params: list[Any] = [shift, shift, start.isoformat(), end.isoformat()]
         if room:
             clause = ' AND room = ?'
             params.append(room)
@@ -185,9 +195,9 @@ class SqliteAlarmRepository:
         with self._db.connect() as conn:
             rows = conn.execute(
                 f'''
-                SELECT date(started_at) AS day, COUNT(*) AS total
+                SELECT date(started_at, ?) AS day, COUNT(*) AS total
                 FROM alarms
-                WHERE date(started_at) BETWEEN ? AND ?{clause}
+                WHERE date(started_at, ?) BETWEEN ? AND ?{clause}
                 GROUP BY day
                 ''',
                 params,

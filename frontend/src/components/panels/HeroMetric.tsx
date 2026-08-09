@@ -12,8 +12,8 @@ interface HeroMetricProps {
   min: number | undefined
   max: number | undefined
   outside: number | undefined
-  insideSeries: number[]
-  outsideSeries: number[]
+  insideSeries: (number | null)[]
+  outsideSeries: (number | null)[]
   /** One label per inside sample, shown in the chart tooltip. */
   labels: string[]
   /** Metric catalog from /api/meta; the delta bar is scaled against it. */

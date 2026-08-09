@@ -8,9 +8,10 @@ import { withAlpha } from '@/lib/metrics'
 import type { Metric } from '@/lib/types'
 
 interface TrendChartProps {
-  inside: number[]
+  /** One slot per hour; `null` where nothing was recorded. */
+  inside: (number | null)[]
   /** Optional outdoor series, drawn as a flat grey reference line behind. */
-  outside?: number[]
+  outside?: (number | null)[]
   /** One label per inside sample, e.g. `14:00`. */
   labels: string[]
   metric: Metric
@@ -40,7 +41,8 @@ export function TrendChart({
   const [ref, size] = useElementSize<HTMLDivElement>()
 
   const chart = useMemo(() => {
-    if (inside.length < 2 || size.width === 0 || size.height === 0) return undefined
+    const recorded = inside.filter((value) => value !== null).length
+    if (recorded < 2 || size.width === 0 || size.height === 0) return undefined
 
     const [min, max] = padExtent([...inside, ...(outside ?? [])], 0.16)
     const area = { width: size.width, height: size.height, padLeft: 4, padRight: 4 }
@@ -56,12 +58,13 @@ export function TrendChart({
       positions: inside.map((_, index) => scale.x(index) / size.width),
       yOf: (value: number) => scale.y(value),
       outsideAt: (index: number) =>
-        outside && outside.length ? outside[Math.min(index, outside.length - 1)] : undefined,
+        outside && index < outside.length ? outside[index] : undefined,
     }
   }, [inside, outside, size])
 
   const pointer = useChartPointer(chart?.positions ?? [])
   const hovered = chart ? pointer.hover : null
+  const insideValue = hovered ? inside[hovered.index] : null
   const outsideValue = hovered ? chart?.outsideAt(hovered.index) : undefined
 
   return (
@@ -71,7 +74,7 @@ export function TrendChart({
 
       {!chart && (
         <div className="label-xs text-chalk-trace flex h-full items-center justify-center">
-          {inside.length < 2 && (loading ? 'READING…' : 'NOT ENOUGH DATA YET')}
+          {loading ? 'READING…' : 'NOT ENOUGH DATA YET'}
         </div>
       )}
 
@@ -114,19 +117,26 @@ export function TrendChart({
             style={{ left: hovered.x }}
             aria-hidden
           />
-          <div
-            className="pointer-events-none absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full"
-            style={{ left: hovered.x, top: chart.yOf(inside[hovered.index]), background: accent }}
-            aria-hidden
-          />
+          {insideValue !== null && (
+            <div
+              className="pointer-events-none absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{ left: hovered.x, top: chart.yOf(insideValue), background: accent }}
+              aria-hidden
+            />
+          )}
           <ChartTooltip
             title={labels[hovered.index] ?? ''}
             x={hovered.x}
             containerWidth={hovered.width}
             side="auto"
             rows={[
-              { label: roomLabel, value: formatMetric(inside[hovered.index], metric), color: accent },
-              ...(outsideValue !== undefined
+              {
+                label: roomLabel,
+                value: insideValue === null ? 'no data' : formatMetric(insideValue, metric),
+                color: accent,
+                muted: insideValue === null,
+              },
+              ...(outsideValue !== undefined && outsideValue !== null
                 ? [
                     {
                       label: 'Outside',

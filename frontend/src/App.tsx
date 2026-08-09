@@ -10,11 +10,14 @@ import { useSocketConnection } from '@/hooks/useSocketEvent'
 import { presetRange, type DateRange } from '@/lib/dates'
 import { formatClock } from '@/lib/format'
 import { ACCENT, ENV_METRICS, METRIC_TITLES, roomLabel } from '@/lib/metrics'
-import type { EnvMetric, Room } from '@/lib/types'
+import type { Alarm, EnvMetric, Room } from '@/lib/types'
 import type { View } from '@/lib/view'
 import type { TabItem } from '@/components/controls/Tabs'
 
 const ALARM_WINDOW_DAYS = 14
+
+/** Stable empty fallback, so the memo below does not re-run on every render. */
+const NO_ALARMS: Alarm[] = []
 
 export default function App() {
   const isDesktop = useMediaQuery('(min-width: 1024px)')
@@ -32,7 +35,15 @@ export default function App() {
   const now = useClock()
 
   const accent = ACCENT[metric]
-  const alarms = alarmLog.data ?? []
+  const alarms = alarmLog.data ?? NO_ALARMS
+
+  // Derived from the alarm list, which refetches on every alarm event. Reading
+  // it from /api/meta instead would leave the header stuck at the count taken
+  // when the page loaded, disagreeing with the log right below it.
+  const alarmsLast7Days = useMemo(() => {
+    const since = Date.now() - 7 * 24 * 60 * 60 * 1000
+    return alarms.filter((alarm) => new Date(alarm.startedAt).getTime() >= since).length
+  }, [alarms])
 
   /** Rooms you can select: the physical ones, not the synthetic outdoor one. */
   const roomTabs: TabItem<Room>[] = useMemo(() => {
@@ -122,7 +133,7 @@ export default function App() {
         view={effectiveView}
         onViewChange={setView}
         connected={connected}
-        alarmCount={meta.data?.alarmCount7d ?? 0}
+        alarmCount={alarmsLast7Days}
         nodes={nodes.data ?? []}
         now={now}
         retentionNote={retentionNote}

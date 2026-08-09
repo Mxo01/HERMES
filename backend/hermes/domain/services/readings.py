@@ -59,7 +59,7 @@ class ReadingQueryService:
         if self._alarms is None:
             return points
 
-        per_day = self._alarms.counts_by_day(start, end, room)
+        per_day = self._alarms.counts_by_day(start, end, room, offset_minutes)
         return [
             DailyPoint(
                 room=point.room,

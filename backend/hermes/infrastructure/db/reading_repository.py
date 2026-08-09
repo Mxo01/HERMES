@@ -179,6 +179,14 @@ class SqliteReadingRepository:
     ) -> list[DailyPoint]:
         """Daily summaries between ``start`` and ``end`` inclusive.
 
+        Built up from hour buckets rather than from two independent day-level
+        queries. A day sitting at the retention boundary has some hours already
+        rolled up and some still raw; summarising each table separately and
+        letting one win would report only that half of the day. Resolving the
+        overlap per hour instead means each hour is counted exactly once, so
+        the outdoor room — whose backfill deliberately covers hours it also has
+        raw samples for — is not double counted either.
+
         ``offset_minutes`` shifts the day boundary so rows line up with the
         viewer's local midnight rather than UTC's.
         """
@@ -189,7 +197,8 @@ class SqliteReadingRepository:
 
         raw_sql = f'''
             SELECT room, metric,
-                   date(timestamp, ?) AS bucket,
+                   date(timestamp, ?) AS day,
+                   strftime('%Y-%m-%d %H:00:00', timestamp) AS bucket,
                    AVG(value) AS avg_value, MIN(value) AS min_value,
                    MAX(value) AS max_value, COUNT(*) AS reading_count
             FROM readings
@@ -198,39 +207,72 @@ class SqliteReadingRepository:
         '''
         rolled_sql = f'''
             SELECT room, metric,
-                   date(hour, ?) AS bucket,
-                   SUM(avg_value * reading_count) / SUM(reading_count) AS avg_value,
-                   MIN(min_value) AS min_value, MAX(max_value) AS max_value,
-                   SUM(reading_count) AS reading_count
+                   date(hour, ?) AS day, hour AS bucket,
+                   avg_value, min_value, max_value, reading_count
             FROM hourly_aggregates
             WHERE domain = ? AND date(hour, ?) BETWEEN ? AND ?{filters}
-            GROUP BY room, metric, bucket
         '''
         args = [shift, domain, shift, first, last, *params]
         with self._db.connect() as conn:
             raw = conn.execute(raw_sql, args).fetchall()
             rolled = conn.execute(rolled_sql, args).fetchall()
 
-        raw_keys = {(row['room'], row['metric'], row['bucket']) for row in raw}
-        merged = self._merge(rolled, raw)
+        return self._days_from_hours(rolled, raw)
+
+    @staticmethod
+    def _days_from_hours(rolled: list[Any], raw: list[Any]) -> list[DailyPoint]:
+        """Fold hour buckets into days, raw winning wherever both tables have one."""
+        hours: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for source, is_raw in ((rolled, False), (raw, True)):
+            for row in source:
+                if row['avg_value'] is None:
+                    continue
+                hours[(row['room'], row['metric'], row['bucket'])] = {
+                    'day': row['day'],
+                    'raw': is_raw,
+                    'avg': row['avg_value'],
+                    'min': row['min_value'],
+                    'max': row['max_value'],
+                    'count': row['reading_count'] or 1,
+                }
+
+        days: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for (room_id, metric_id, _), hour in hours.items():
+            key = (room_id, metric_id, hour['day'])
+            day = days.get(key)
+            if day is None:
+                days[key] = {
+                    'weighted': hour['avg'] * hour['count'],
+                    'count': hour['count'],
+                    'min': hour['min'],
+                    'max': hour['max'],
+                    # A day only counts as full resolution if every hour of it
+                    # still has its individual samples.
+                    'raw': hour['raw'],
+                }
+                continue
+            day['weighted'] += hour['avg'] * hour['count']
+            day['count'] += hour['count']
+            day['min'] = min(day['min'], hour['min'])
+            day['max'] = max(day['max'], hour['max'])
+            day['raw'] = day['raw'] and hour['raw']
 
         points: list[DailyPoint] = []
-        for key, row in merged.items():
-            room_id, metric_id, bucket = key
+        for (room_id, metric_id, bucket), day in days.items():
             try:
-                day = datetime.date.fromisoformat(bucket)
+                parsed = datetime.date.fromisoformat(bucket)
             except ValueError:
                 continue
             points.append(
                 DailyPoint(
                     room=room_id,
                     metric=metric_id,
-                    day=day,
-                    avg=row['avg_value'],
-                    min=row['min_value'],
-                    max=row['max_value'],
-                    count=row['reading_count'],
-                    resolution=Resolution.RAW if key in raw_keys else Resolution.HOURLY,
+                    day=parsed,
+                    avg=day['weighted'] / day['count'],
+                    min=day['min'],
+                    max=day['max'],
+                    count=day['count'],
+                    resolution=Resolution.RAW if day['raw'] else Resolution.HOURLY,
                 )
             )
         points.sort(key=lambda point: (point.day, point.room, point.metric))

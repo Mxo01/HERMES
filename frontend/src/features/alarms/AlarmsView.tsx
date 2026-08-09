@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { AlarmCards } from '@/components/panels/AlarmLog'
 import { GasPanel } from '@/components/panels/GasPanel'
 import { useHourly } from '@/hooks/useDashboardData'
-import { hourlySeries } from '@/lib/series'
+import { averages, hourlySeries } from '@/lib/series'
 import type { Alarm, Meta, Status } from '@/lib/types'
 
 interface AlarmsViewProps {
@@ -22,7 +22,7 @@ export function AlarmsView({ alarms, status, meta, days }: AlarmsViewProps) {
   const gasRoom = rooms.find((room) => status[room]?.gas !== undefined) ?? 'kitchen'
 
   const gasSeries = useMemo(
-    () => hourlySeries(gasHistory.data ?? [], gasRoom, 'gas', 24).map((bucket) => bucket.avg),
+    () => averages(hourlySeries(gasHistory.data ?? [], gasRoom, 'gas', 24)),
     [gasHistory.data, gasRoom],
   )
 

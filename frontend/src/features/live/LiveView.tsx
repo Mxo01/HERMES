@@ -6,8 +6,7 @@ import { GasPanel } from '@/components/panels/GasPanel'
 import { HeroMetric } from '@/components/panels/HeroMetric'
 import { RoomComparison } from '@/components/panels/RoomComparison'
 import { useHourly } from '@/hooks/useDashboardData'
-import { heatmapGrid, hourlySeries } from '@/lib/series'
-import { formatClock } from '@/lib/format'
+import { averages, extentOf, heatmapGrid, hourLabels, hourlySeries } from '@/lib/series'
 import { METRIC_TITLES, roomLabel } from '@/lib/metrics'
 import type { Alarm, EnvMetric, Meta, Room, Status } from '@/lib/types'
 import type { TabItem } from '@/components/controls/Tabs'
@@ -53,14 +52,14 @@ export function LiveView({
     const points = week.data ?? []
     const inside = hourlySeries(points, room, metric, 24)
     const outside = hourlySeries(points, outsideRoom, metric, 24)
-    const values = inside.map((bucket) => bucket.avg)
+    const extent = extentOf(inside)
 
     return {
-      insideSeries: values,
-      outsideSeries: outside.map((bucket) => bucket.avg),
-      labels: inside.map((bucket) => formatClock(bucket.hour)),
-      min: inside.length ? Math.min(...inside.map((bucket) => bucket.min)) : undefined,
-      max: inside.length ? Math.max(...inside.map((bucket) => bucket.max)) : undefined,
+      insideSeries: averages(inside),
+      outsideSeries: averages(outside),
+      labels: hourLabels(inside, 24),
+      min: extent.min,
+      max: extent.max,
     }
   }, [week.data, room, metric, outsideRoom])
 
@@ -75,11 +74,8 @@ export function LiveView({
   )
 
   const gas = useMemo(() => {
-    const buckets = hourlySeries(gasHistory.data ?? [], gasRoom, 'gas', 24)
-    return {
-      series: buckets.map((bucket) => bucket.avg),
-      labels: buckets.map((bucket) => formatClock(bucket.hour)),
-    }
+    const slots = hourlySeries(gasHistory.data ?? [], gasRoom, 'gas', 24)
+    return { series: averages(slots), labels: hourLabels(slots, 24) }
   }, [gasHistory.data, gasRoom])
 
   const lastGasAlarm = alarms.find((alarm) => alarm.kind === 'gas')

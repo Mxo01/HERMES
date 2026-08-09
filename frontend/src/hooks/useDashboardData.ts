@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/lib/api'
-import type { Alarm, DailyPoint, HourlyPoint, LiveReading, Meta, Metric, NodeInfo, Room, Status } from '@/lib/types'
+import type {
+  Alarm,
+  DailyPoint,
+  HourlyPoint,
+  LiveReading,
+  Meta,
+  Metric,
+  MetricPoint,
+  NodeInfo,
+  Room,
+  Status,
+} from '@/lib/types'
 import { toISODate } from '@/lib/dates'
 import { useResource, type Resource } from '@/hooks/useResource'
 import { useSocketEvent } from '@/hooks/useSocketEvent'
@@ -24,7 +35,22 @@ export function useLiveStatus(): { status: Status; loading: boolean; error: Erro
   const [status, setStatus] = useState<Status>({})
 
   useEffect(() => {
-    if (data) setStatus(data)
+    if (!data) return
+    // Merge rather than replace: the socket can deliver a reading before this
+    // request resolves, and overwriting it with the older snapshot would show
+    // a stale value until the node next reports.
+    setStatus((previous) => {
+      const next: Status = { ...previous }
+      for (const [room, metrics] of Object.entries(data)) {
+        const merged = { ...(next[room] ?? {}) }
+        for (const [metric, point] of Object.entries(metrics) as [Metric, MetricPoint][]) {
+          const held = merged[metric]
+          if (!held || held.timestamp <= point.timestamp) merged[metric] = point
+        }
+        next[room] = merged
+      }
+      return next
+    })
   }, [data])
 
   useSocketEvent<LiveReading>('sensor_update', (reading) => {

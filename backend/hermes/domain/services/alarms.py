@@ -62,9 +62,13 @@ class AlarmService:
         return self._repository.count_since(self._clock.now() - datetime.timedelta(days=days))
 
     def counts_by_day(
-        self, start: datetime.date, end: datetime.date, room: str | None = None
+        self,
+        start: datetime.date,
+        end: datetime.date,
+        room: str | None = None,
+        offset_minutes: int = 0,
     ) -> dict[datetime.date, int]:
-        return self._repository.counts_by_day(start, end, room)
+        return self._repository.counts_by_day(start, end, room, offset_minutes)
 
     # ----------------------------------------------------------------- write
 

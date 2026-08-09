@@ -148,3 +148,67 @@ def test_two_boards_in_one_room_get_their_own_node_alarms(
 
 def _kitchen_gas_node(services: Services):  # type: ignore[no-untyped-def]
     return next(n for n in services.nodes.list_status() if n.room == 'kitchen' and n.sensor == 'mq2')
+
+
+def test_downsampling_preserves_a_day_split_across_both_tables(
+    services: Services, clock: FrozenClock
+) -> None:
+    """The day at the retention boundary has rolled and raw hours at once."""
+    repository = SqliteReadingRepository(services.database)
+    day = clock.now().replace(hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(days=9)
+    for hour in range(24):
+        repository.insert_many(
+            'air_quality',
+            'kitchen',
+            {'temperature': 30.0 if hour < 12 else 10.0},
+            day + datetime.timedelta(hours=hour),
+        )
+
+    before = services.readings.daily('kitchen', 'temperature', day.date(), day.date())[0]
+
+    # A cutoff inside that day rolls up only its first half.
+    services.retention.downsample(keep_days=9)
+
+    after = services.readings.daily('kitchen', 'temperature', day.date(), day.date())[0]
+    assert (after.min, after.avg, after.max) == (before.min, before.avg, before.max)
+    assert after.count == before.count
+    # Half its hours no longer have individual samples, and it says so.
+    assert after.resolution is Resolution.HOURLY
+
+
+def test_downsampling_never_splits_an_hour(services: Services, clock: FrozenClock) -> None:
+    """A half-rolled hour could never be completed: the second insert is a no-op."""
+    repository = SqliteReadingRepository(services.database)
+    hour = clock.now().replace(minute=0, second=0, microsecond=0) - datetime.timedelta(days=8)
+    for minute, value in ((0, 10.0), (15, 20.0), (30, 30.0), (45, 40.0)):
+        repository.insert_many(
+            'air_quality', 'kitchen', {'temperature': value}, hour + datetime.timedelta(minutes=minute)
+        )
+
+    # Two runs whose raw cutoffs both land inside that hour.
+    services.retention.downsample(keep_days=8)
+    clock.advance(minutes=30)
+    services.retention.downsample(keep_days=8)
+
+    day = hour.date()
+    point = services.readings.daily('kitchen', 'temperature', day, day)[0]
+    assert (point.min, point.max, point.count) == (10.0, 40.0, 4)
+    assert point.avg == pytest.approx(25.0)
+
+
+def test_alarm_counts_follow_the_same_day_boundary_as_the_readings(
+    services: Services, clock: FrozenClock
+) -> None:
+    """An alarm just after local midnight belongs to the local day, not the UTC one."""
+    # The clock starts at 14:32 UTC; move it to 23:30, which is 01:30 the
+    # following day for a viewer at UTC+2.
+    clock.advance(hours=8, minutes=58)
+    assert clock.now().hour == 23
+    services.ingestion.ingest({'room': 'kitchen', 'sensor': 'mq2', 'gas': 180})
+
+    utc_day = clock.now().date()
+    local_day = utc_day + datetime.timedelta(days=1)
+
+    counts = services.alarms.counts_by_day(utc_day, local_day, offset_minutes=120)
+    assert counts.get(local_day) == 1
+    assert counts.get(utc_day) is None

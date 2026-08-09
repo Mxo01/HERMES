@@ -42,20 +42,35 @@ export function createScale(count: number, min: number, max: number, area: PlotA
   }
 }
 
-/** Smooth the series with symmetric cubic control points at each midpoint. */
-export function smoothPath(values: number[], scale: Scale): string {
-  if (values.length === 0) return ''
-  if (values.length === 1) {
-    const only = `${scale.x(0).toFixed(1)},${scale.y(values[0]).toFixed(1)}`
-    return `M${only} L${only}`
-  }
+/** Runs of consecutive readings, so gaps stay gaps rather than closing up. */
+function segmentsOf(values: (number | null)[]): { index: number; value: number }[][] {
+  const segments: { index: number; value: number }[][] = []
+  let current: { index: number; value: number }[] = []
 
-  let path = `M${scale.x(0).toFixed(1)},${scale.y(values[0]).toFixed(1)}`
-  for (let i = 1; i < values.length; i++) {
-    const previousX = scale.x(i - 1)
-    const previousY = scale.y(values[i - 1])
-    const currentX = scale.x(i)
-    const currentY = scale.y(values[i])
+  values.forEach((value, index) => {
+    if (value === null || Number.isNaN(value)) {
+      if (current.length) segments.push(current)
+      current = []
+      return
+    }
+    current.push({ index, value })
+  })
+  if (current.length) segments.push(current)
+
+  return segments
+}
+
+function segmentPath(points: { index: number; value: number }[], scale: Scale): string {
+  const first = points[0]
+  const start = `${scale.x(first.index).toFixed(1)},${scale.y(first.value).toFixed(1)}`
+  if (points.length === 1) return `M${start} L${start}`
+
+  let path = `M${start}`
+  for (let i = 1; i < points.length; i++) {
+    const previousX = scale.x(points[i - 1].index)
+    const previousY = scale.y(points[i - 1].value)
+    const currentX = scale.x(points[i].index)
+    const currentY = scale.y(points[i].value)
     const midX = (previousX + currentX) / 2
     path +=
       ` C${midX.toFixed(1)},${previousY.toFixed(1)}` +
@@ -65,12 +80,29 @@ export function smoothPath(values: number[], scale: Scale): string {
   return path
 }
 
-/** Close a line down to the baseline so it can be filled. */
-export function areaPath(values: number[], scale: Scale): string {
-  if (values.length === 0) return ''
-  const line = smoothPath(values, scale)
+/**
+ * Smooth the series with symmetric cubic control points at each midpoint.
+ *
+ * A `null` breaks the line: the x position of every point stays tied to its
+ * slot, so an hour with no reading shows as a gap instead of being closed over.
+ */
+export function smoothPath(values: (number | null)[], scale: Scale): string {
+  return segmentsOf(values)
+    .map((segment) => segmentPath(segment, scale))
+    .join(' ')
+}
+
+/** Close each drawn run down to the baseline so it can be filled. */
+export function areaPath(values: (number | null)[], scale: Scale): string {
   const bottom = scale.area.height
-  return `${line} L${scale.x(values.length - 1).toFixed(1)},${bottom} L${scale.x(0).toFixed(1)},${bottom} Z`
+  return segmentsOf(values)
+    .map((segment) => {
+      const line = segmentPath(segment, scale)
+      const from = scale.x(segment[0].index).toFixed(1)
+      const to = scale.x(segment[segment.length - 1].index).toFixed(1)
+      return `${line} L${to},${bottom} L${from},${bottom} Z`
+    })
+    .join(' ')
 }
 
 /** A filled min–max envelope: the upper line out, the lower line back. */
@@ -85,10 +117,11 @@ export function bandPath(upper: number[], lower: number[], scale: Scale): string
 }
 
 /** Extend a [min, max] pair by a fraction of its span, so lines never touch the edge. */
-export function padExtent(values: number[], fraction = 0.18): [number, number] {
-  if (values.length === 0) return [0, 1]
-  const low = Math.min(...values)
-  const high = Math.max(...values)
+export function padExtent(values: (number | null)[], fraction = 0.18): [number, number] {
+  const present = values.filter((value): value is number => value !== null && !Number.isNaN(value))
+  if (present.length === 0) return [0, 1]
+  const low = Math.min(...present)
+  const high = Math.max(...present)
   const padding = (high - low) * fraction || Math.abs(high) * 0.1 || 1
   return [low - padding, high + padding]
 }

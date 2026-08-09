@@ -9,6 +9,9 @@ export interface HourBucket {
   max: number
 }
 
+/** An hour of the window: a reading, or `null` when nothing was recorded. */
+export type HourSlot = HourBucket | null
+
 function hourKey(date: Date): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours()).getTime()
 }
@@ -27,7 +30,7 @@ export function hourlySeries(
   metric: Metric,
   hours: number,
   now = new Date(),
-): HourBucket[] {
+): HourSlot[] {
   const wanted = new Map<number, HourBucket>()
   const currentHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours())
 
@@ -37,13 +40,42 @@ export function hourlySeries(
     wanted.set(hourKey(date), { hour: date, avg: point.avg, min: point.min, max: point.max })
   }
 
-  const series: HourBucket[] = []
+  // One slot per hour, `null` where nothing was recorded. Dropping the empty
+  // hours instead would slide the remaining points across the full width and
+  // draw an unbroken line over an outage, under an axis still claiming to
+  // span the whole window.
+  const series: HourSlot[] = []
   for (let offset = hours - 1; offset >= 0; offset--) {
     const slot = new Date(currentHour.getTime() - offset * 3_600_000)
-    const bucket = wanted.get(hourKey(slot))
-    if (bucket) series.push(bucket)
+    series.push(wanted.get(hourKey(slot)) ?? null)
   }
   return series
+}
+
+/** The averages of a series, with gaps preserved for the charts to break on. */
+export function averages(series: HourSlot[]): (number | null)[] {
+  return series.map((slot) => (slot ? slot.avg : null))
+}
+
+/** Labels for every slot, so a gap still knows which hour it is. */
+export function hourLabels(series: HourSlot[], hours: number, now = new Date()): string[] {
+  const currentHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours())
+  return series.map((slot, index) => {
+    const at = slot
+      ? slot.hour
+      : new Date(currentHour.getTime() - (hours - 1 - index) * 3_600_000)
+    return `${String(at.getHours()).padStart(2, '0')}:00`
+  })
+}
+
+/** Extent of the recorded values, ignoring gaps. */
+export function extentOf(series: HourSlot[]): { min?: number; max?: number } {
+  const present = series.filter((slot): slot is HourBucket => slot !== null)
+  if (present.length === 0) return {}
+  return {
+    min: Math.min(...present.map((slot) => slot.min)),
+    max: Math.max(...present.map((slot) => slot.max)),
+  }
 }
 
 export interface HeatCell {

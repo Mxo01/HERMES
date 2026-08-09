@@ -6,7 +6,7 @@ import type { Alarm } from '@/lib/types'
 interface GasPanelProps {
   value: number | undefined
   threshold: number
-  series: number[]
+  series: (number | null)[]
   /** One label per sample, for the sparkline's hover readout. */
   labels?: string[]
   lastSpike?: Alarm

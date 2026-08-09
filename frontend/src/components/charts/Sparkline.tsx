@@ -7,7 +7,8 @@ import { formatMetric } from '@/lib/format'
 import type { Metric } from '@/lib/types'
 
 interface SparklineProps {
-  values: number[]
+  /** One slot per sample; `null` where nothing was recorded. */
+  values: (number | null)[]
   color: string
   className?: string
   strokeWidth?: number
@@ -33,7 +34,8 @@ export function Sparkline({
   const [ref, size] = useElementSize<HTMLDivElement>()
 
   const chart = useMemo(() => {
-    if (values.length < 2 || size.width === 0 || size.height === 0) return undefined
+    if (values.filter((v) => v !== null).length < 2 || size.width === 0 || size.height === 0)
+      return undefined
 
     const [min, max] = padExtent(values, 0.12)
     const scale = createScale(values.length, min, max, {
@@ -54,6 +56,7 @@ export function Sparkline({
   const pointer = useChartPointer(chart?.positions ?? [])
   const interactive = Boolean(labels && metric)
   const hovered = interactive && chart ? pointer.hover : null
+  const hoveredValue = hovered ? values[hovered.index] : null
 
   return (
     <div className={`relative ${className ?? ''}`} ref={ref}>
@@ -83,17 +86,26 @@ export function Sparkline({
 
       {chart && hovered && metric && (
         <>
-          <div
-            className="pointer-events-none absolute h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
-            style={{ left: hovered.x, top: chart.yOf(values[hovered.index]), background: color }}
-            aria-hidden
-          />
+          {hoveredValue !== null && (
+            <div
+              className="pointer-events-none absolute h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{ left: hovered.x, top: chart.yOf(hoveredValue), background: color }}
+              aria-hidden
+            />
+          )}
           <ChartTooltip
             title={labels?.[hovered.index] ?? ''}
             x={hovered.x}
             y={size.height + 4}
             containerWidth={hovered.width}
-            rows={[{ label: seriesLabel, value: formatMetric(values[hovered.index], metric), color }]}
+            rows={[
+              {
+                label: seriesLabel,
+                value: hoveredValue === null ? 'no data' : formatMetric(hoveredValue, metric),
+                color,
+                muted: hoveredValue === null,
+              },
+            ]}
           />
         </>
       )}

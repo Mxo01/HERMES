@@ -102,7 +102,13 @@ class AlarmRepository(Protocol):
 
     def count_since(self, since: datetime.datetime) -> int: ...
 
-    def counts_by_day(self, start: datetime.date, end: datetime.date, room: str | None) -> dict[datetime.date, int]: ...
+    def counts_by_day(
+        self,
+        start: datetime.date,
+        end: datetime.date,
+        room: str | None,
+        offset_minutes: int = 0,
+    ) -> dict[datetime.date, int]: ...
 
 
 class EventPublisher(Protocol):

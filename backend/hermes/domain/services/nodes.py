@@ -41,13 +41,17 @@ class NodeService:
         for status in statuses:
             if status.state is not NodeState.OFFLINE:
                 continue
+            # Date the alarm from the node's last contact, not from the moment
+            # the watchdog noticed. Using `now` would silently shorten every
+            # reported outage by the offline threshold plus up to one watchdog
+            # interval.
             since = status.last_seen or now
             minutes = max(1, int((now - since).total_seconds()) // 60)
             self._alarms.open_node_alarm(
                 status.room,
                 status.sensor,
-                f'{status.label} silent for {minutes} min',
-                now,
+                f'{status.label} silent since {since:%H:%M} ({minutes} min)',
+                since,
             )
         if self._publisher is not None:
             self._publisher.publish(

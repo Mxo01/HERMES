@@ -15,6 +15,11 @@ WorkingDirectory=/opt/hermes/current/backend
 EnvironmentFile=/opt/hermes/shared/hermes.env
 ExecStart=/opt/hermes/venv/bin/gunicorn -c gunicorn.conf.py wsgi:app
 
+# gunicorn puts its control socket under $HOME. Pointing HOME at the one
+# writable directory keeps ProtectSystem=strict intact and stops it logging a
+# permission error on every start.
+Environment=HOME=/opt/hermes/shared
+
 Restart=always
 RestartSec=5
 # Give up only after repeated rapid failures, so a bad release surfaces in the
