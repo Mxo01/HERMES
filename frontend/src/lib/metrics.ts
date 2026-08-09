@@ -1,4 +1,4 @@
-import type { EnvMetric, Metric, Room, Severity } from '@/lib/types'
+import type { EnvMetric, Metric, MetricSpec, Room, Severity } from '@/lib/types'
 
 /**
  * One accent per metric, all at the same lightness and chroma so no metric
@@ -33,12 +33,27 @@ export const METRIC_DECIMALS: Record<Metric, number> = {
   aq: 0,
 }
 
-/** Plausible full-scale range, used to size the comparison bars. */
-export const METRIC_SPAN: Record<Metric, [number, number]> = {
+/**
+ * Fallback full-scale range for the comparison bars, used only until
+ * `/api/meta` arrives. The server is the authority — see {@link metricSpan}.
+ */
+const FALLBACK_SPAN: Record<Metric, [number, number]> = {
   gas: [0, 1023],
   temperature: [5, 35],
   humidity: [10, 95],
-  aq: [0, 200],
+  aq: [0, 500],
+}
+
+/**
+ * The scale a bar is drawn against.
+ *
+ * Fixed per metric rather than derived from the data, so a bar means the same
+ * thing in every room. The values come from the backend's metric catalog, so
+ * thresholds and display range can never drift apart between the two.
+ */
+export function metricSpan(metric: Metric, specs?: Record<Metric, MetricSpec>): [number, number] {
+  const spec = specs?.[metric]
+  return spec ? [spec.displayMin, spec.displayMax] : FALLBACK_SPAN[metric]
 }
 
 export const ROOM_LABELS: Record<Room, string> = {

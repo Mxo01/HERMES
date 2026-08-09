@@ -96,6 +96,7 @@ export function LiveView({
       insideSeries={hero.insideSeries}
       outsideSeries={hero.outsideSeries}
       labels={hero.labels}
+      metricSpecs={meta?.metrics}
       loading={week.loading && !week.data}
       compact={compact}
     />
@@ -141,6 +142,7 @@ export function LiveView({
             rooms={rooms}
             outsideRoom={outsideRoom}
             outsideLocation={meta?.outsideLocation?.label}
+            metricSpecs={meta?.metrics}
             compact
           />
         </section>
@@ -175,6 +177,7 @@ export function LiveView({
               rooms={rooms}
               outsideRoom={outsideRoom}
               outsideLocation={meta?.outsideLocation?.label}
+              metricSpecs={meta?.metrics}
             />
           </section>
         </div>

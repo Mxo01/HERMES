@@ -1,14 +1,16 @@
 import { formatMetric, percent } from '@/lib/format'
-import { ACCENT, ENV_METRICS, METRIC_SPAN, METRIC_TITLES, roomLabel } from '@/lib/metrics'
+import { ACCENT, ENV_METRICS, METRIC_TITLES, metricSpan, roomLabel } from '@/lib/metrics'
 import { cn } from '@/lib/utils'
-import type { EnvMetric, Room, Status } from '@/lib/types'
+import type { EnvMetric, Metric, MetricSpec, Room, Status } from '@/lib/types'
 
 interface RoomComparisonProps {
   status: Status
   rooms: Room[]
   outsideRoom: Room
-  /** Place the outdoor readings come from, e.g. "Florence, Italy". */
+  /** Place the outdoor readings come from, e.g. "Pisa, Italy". */
   outsideLocation?: string | null
+  /** Metric catalog from /api/meta; the bars are scaled against it. */
+  metricSpecs?: Record<Metric, MetricSpec>
   compact?: boolean
 }
 
@@ -29,6 +31,7 @@ export function RoomComparison({
   rooms,
   outsideRoom,
   outsideLocation,
+  metricSpecs,
   compact = false,
 }: RoomComparisonProps) {
   const ordered = [...rooms.filter((room) => room !== outsideRoom), outsideRoom]
@@ -95,7 +98,7 @@ export function RoomComparison({
                       style={{
                         height: compact ? 3 : 4,
                         background: outdoor ? 'var(--color-ink-400)' : ACCENT[metric],
-                        width: value === undefined ? '0%' : percent(value, METRIC_SPAN[metric]),
+                        width: value === undefined ? '0%' : percent(value, metricSpan(metric, metricSpecs)),
                         animationDelay: `${0.15 + index * 0.08}s`,
                       }}
                     />

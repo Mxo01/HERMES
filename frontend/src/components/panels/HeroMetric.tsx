@@ -1,8 +1,8 @@
 import { TrendChart } from '@/components/charts/TrendChart'
 import { formatDelta, formatMetric } from '@/lib/format'
-import { METRIC_SPAN, METRIC_TITLES, METRIC_UNITS, roomLabel } from '@/lib/metrics'
+import { METRIC_TITLES, METRIC_UNITS, metricSpan, roomLabel } from '@/lib/metrics'
 import { cn } from '@/lib/utils'
-import type { EnvMetric, Room } from '@/lib/types'
+import type { EnvMetric, Metric, MetricSpec, Room } from '@/lib/types'
 
 interface HeroMetricProps {
   room: Room
@@ -16,6 +16,8 @@ interface HeroMetricProps {
   outsideSeries: number[]
   /** One label per inside sample, shown in the chart tooltip. */
   labels: string[]
+  /** Metric catalog from /api/meta; the delta bar is scaled against it. */
+  metricSpecs?: Record<Metric, MetricSpec>
   loading?: boolean
   compact?: boolean
 }
@@ -35,6 +37,7 @@ export function HeroMetric({
   insideSeries,
   outsideSeries,
   labels,
+  metricSpecs,
   loading = false,
   compact = false,
 }: HeroMetricProps) {
@@ -42,7 +45,7 @@ export function HeroMetric({
   const higher = (delta ?? 0) >= 0
   const deltaColor = delta === undefined ? 'var(--color-chalk-faint)' : higher ? accent : 'var(--color-chalk-faint)'
 
-  const [spanMin, spanMax] = METRIC_SPAN[metric]
+  const [spanMin, spanMax] = metricSpan(metric, metricSpecs)
   const deltaWidth =
     delta === undefined ? '0%' : `${Math.min(100, (Math.abs(delta) / (spanMax - spanMin)) * 340).toFixed(1)}%`
 
