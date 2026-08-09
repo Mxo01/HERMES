@@ -1,0 +1,196 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   HERMES design tokens.
+
+   The dashboard reads as a laboratory instrument: near-black panels, hairline
+   rules, one monospace face, and colour reserved for the metric in focus.
+   Greys are numbered by depth so a panel's elevation is obvious from its class.
+--------------------------------------------------------------------------- */
+
+@theme {
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Surfaces, darkest first. */
+  --color-ink-950: #080809;
+  --color-ink-900: #0b0b0d;
+  --color-ink-850: #0d0d0f;
+  --color-ink-800: #111114;
+  --color-ink-750: #121215;
+  --color-ink-700: #131316;
+  --color-ink-650: #17171a;
+  --color-ink-600: #1c1c20;
+  --color-ink-500: #26262b;
+  --color-ink-400: #3c3c42;
+
+  /* Text, brightest first. */
+  --color-chalk: #e9e9ea;
+  --color-chalk-dim: #d6d6da;
+  --color-chalk-muted: #9a9aa0;
+  --color-chalk-soft: #7c7c83;
+  --color-chalk-faint: #6e6e73;
+  --color-chalk-ghost: #5b5b60;
+  --color-chalk-trace: #3f3f45;
+
+  /* Status. */
+  --color-signal-ok: #5cc79a;
+  --color-signal-warn: #e8b04a;
+  --color-signal-alert: #e8734a;
+  --color-signal-cool: #6d9fd6;
+
+  /* Metric accents — same hue family, one hue step per metric. */
+  --color-metric-temperature: oklch(0.78 0.14 55);
+  --color-metric-humidity: oklch(0.78 0.14 230);
+  --color-metric-aq: oklch(0.78 0.14 155);
+
+  --animate-draw: draw 1.4s ease-out both;
+  --animate-pulse-dot: pulse-dot 2.4s ease-in-out infinite;
+}
+
+/* Instrument motion: lines draw themselves, bars grow from their origin, and
+   everything settles within ~1.4s of load. Charts re-run these on data change,
+   which reads as the instrument re-taking the measurement. */
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes grow-bar {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes cell-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility animate-draw-line {
+  stroke-dasharray: 1;
+  animation: draw 1.4s ease-out both;
+}
+
+@utility animate-fade {
+  animation: fade-in 1s 0.4s ease both;
+}
+
+@utility animate-rise {
+  animation: rise 0.22s ease both;
+}
+
+@utility animate-grow {
+  transform-origin: left;
+  animation: grow-bar 0.9s 0.25s cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+@utility animate-cell {
+  animation: cell-in 0.5s both;
+}
+
+/* Uppercase micro-labels carry the instrument's hierarchy; the tracking is
+   what makes them read as annotation rather than content. */
+@utility label-xs {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+@utility label-sm {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--color-ink-950);
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-ink-950);
+    color: var(--color-chalk);
+    font-family: var(--font-mono);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--color-ink-900);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-ink-500);
+    border-radius: 5px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
