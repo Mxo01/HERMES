@@ -1,0 +1,15 @@
+[tool.mypy]
+# Matches Raspberry Pi OS Bookworm, which is what the Pi actually runs. The
+# type checker should model the deployment target, not the dev machine, or it
+# happily accepts syntax the Pi cannot execute.
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+warn_return_any = true
+exclude = "^(venv|tests)/"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
