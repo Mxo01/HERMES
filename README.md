@@ -414,6 +414,7 @@ Do not port-forward instead — the dashboard has no login, because the network 
 the boundary.
 
 Setup and day-to-day operation: **[deploy/README.md](deploy/README.md)**.
+First time with the physical hardware: **[deploy/BRINGUP.md](deploy/BRINGUP.md)**.
 
 ---
 
