@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
+import { CalendarDays, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { BandChart } from '@/components/charts/BandChart'
 import { Pager } from '@/components/controls/Pager'
 import { RangePicker } from '@/components/controls/RangePicker'
 import { Tabs, type TabItem } from '@/components/controls/Tabs'
 import { CompareStats } from '@/components/panels/CompareStats'
 import { DayRows, DayTable } from '@/components/panels/DayTable'
+import { Reveal } from '@/components/shared/Reveal'
 import { useDaily } from '@/hooks/useDashboardData'
 import { buildDayRows, paginate } from '@/lib/history'
 import { halfPeriodStats } from '@/lib/series'
-import { METRIC_TITLES, roomLabel, withAlpha } from '@/lib/metrics'
+import { METRIC_ICONS, METRIC_TITLES, roomLabel, withAlpha } from '@/lib/metrics'
 import { daysBetween, type DateRange } from '@/lib/dates'
 import type { DailyPoint, EnvMetric, Meta, Room } from '@/lib/types'
 
@@ -24,6 +26,9 @@ interface HistoryViewProps {
   meta: Meta | undefined
   accent: string
   compact: boolean
+  /** Desktop only: whether the nav rail is currently hidden. */
+  sidebarCollapsed: boolean
+  onToggleSidebar: () => void
 }
 
 const DESKTOP_PAGE = 10
@@ -44,6 +49,8 @@ export function HistoryView({
   meta,
   accent,
   compact,
+  sidebarCollapsed,
+  onToggleSidebar,
 }: HistoryViewProps) {
   const daily = useDaily(room, metric, range.from, range.to)
   const [pageIndex, setPageIndex] = useState(0)
@@ -65,16 +72,28 @@ export function HistoryView({
 
   const spanDays = daysBetween(range.from, range.to)
   const retention = meta?.retention
+  const MetricIcon = METRIC_ICONS[metric]
 
   if (compact) {
     return (
       <div className="flex flex-col">
         <div className="px-[18px] pt-1.5 pb-3">
+          <span className="text-chalk-trace mb-1 block text-[9px] tracking-[0.14em] uppercase">
+            Date range
+          </span>
           <RangePicker range={range} onChange={onRangeChange} accent={accent} variant="sheet" />
-          <div className="mt-2.5 flex gap-1.5">
+
+          <span className="text-chalk-trace mt-2.5 mb-1 block text-[9px] tracking-[0.14em] uppercase">
+            Room
+          </span>
+          <div className="flex gap-1.5">
             <Tabs items={roomTabs} value={room} onChange={onRoomChange} layout="fill" label="Room" />
           </div>
-          <div className="mt-1.5 flex gap-1.5">
+
+          <span className="text-chalk-trace mt-1.5 mb-1 block text-[9px] tracking-[0.14em] uppercase">
+            Metric
+          </span>
+          <div className="flex gap-1.5">
             <Tabs
               items={metricTabs}
               value={metric}
@@ -86,33 +105,58 @@ export function HistoryView({
           </div>
         </div>
 
-        <div className="px-[18px] pt-1 pb-2">
-          <h2 className="label-xs text-chalk-ghost mb-2">
-            {roomLabel(room)} · daily range · {spanDays} days
-          </h2>
-          <BandChart
-            points={points}
+        <Reveal>
+          <div className="px-[18px] pt-1 pb-2">
+            <h2 className="label-xs text-chalk-ghost mb-2 flex items-center gap-1.5">
+              <MetricIcon size={11} strokeWidth={2} aria-hidden />
+              {roomLabel(room)} · daily range · {spanDays} days
+            </h2>
+            <BandChart
+              points={points}
+              metric={metric}
+              accent={accent}
+              compact
+              height={132}
+              loading={daily.loading && !daily.data}
+              error={daily.error}
+              animationKey={`${room}-${metric}-${spanDays}`}
+            />
+          </div>
+        </Reveal>
+
+        <Reveal>
+          <CompareStats
+            stats={stats}
             metric={metric}
             accent={accent}
-            compact
-            height={132}
+            quietDelta={quietDelta}
             loading={daily.loading && !daily.data}
-            animationKey={`${room}-${metric}-${spanDays}`}
+            error={daily.error}
+            compact
           />
-        </div>
+        </Reveal>
 
-        <CompareStats stats={stats} metric={metric} accent={accent} quietDelta={quietDelta} compact />
-
-        <section className="px-[18px] pt-3 pb-[18px]">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="label-xs text-chalk-ghost">Day by day</h2>
-            <span className="text-chalk-faint tabular text-[9.5px] tracking-[0.12em]">
-              {page.total === 0 ? '0' : `${page.from + 1}–${page.to}`} OF {page.total}
-            </span>
-          </div>
-          <DayRows rows={page.items} metric={metric} accent={accent} />
-          <Pager page={page} onChange={setPageIndex} variant="split" />
-        </section>
+        <Reveal>
+          <section className="px-[18px] pt-3 pb-[18px]">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="label-xs text-chalk-ghost flex items-center gap-1.5">
+                <CalendarDays size={11} strokeWidth={2} aria-hidden />
+                Day by day
+              </h2>
+              <span className="text-chalk-faint tabular text-[9.5px] tracking-[0.12em]">
+                {page.total === 0 ? '0' : `${page.from + 1}–${page.to}`} OF {page.total}
+              </span>
+            </div>
+            <DayRows
+              rows={page.items}
+              metric={metric}
+              accent={accent}
+              loading={daily.loading && !daily.data}
+              error={daily.error}
+            />
+            <Pager page={page} onChange={setPageIndex} variant="split" />
+          </section>
+        </Reveal>
       </div>
     )
   }
@@ -120,64 +164,107 @@ export function HistoryView({
   return (
     <div>
       <div className="border-ink-650 bg-ink-900 flex items-center justify-between border-b px-[26px] py-3">
-        <Tabs items={roomTabs} value={room} onChange={onRoomChange} label="Room" />
+        <div className="flex items-center gap-3.5">
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            className="text-chalk-ghost hover:text-chalk-dim hover:bg-ink-800 rounded-md p-1.5 transition-colors duration-150"
+            aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+            title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen size={15} strokeWidth={2} aria-hidden />
+            ) : (
+              <PanelLeftClose size={15} strokeWidth={2} aria-hidden />
+            )}
+          </button>
+          <Tabs items={roomTabs} value={room} onChange={onRoomChange} label="Room" />
+        </div>
 
         <div className="flex items-center gap-3.5">
-          <Tabs
-            items={metricTabs}
-            value={metric}
-            onChange={onMetricChange}
-            tone="metric"
-            label="Metric"
-          />
+          <div className="flex items-center gap-1.5">
+            <span className="text-chalk-ghost mr-1.5 text-[10.5px] tracking-[0.16em]">METRIC</span>
+            <Tabs
+              items={metricTabs}
+              value={metric}
+              onChange={onMetricChange}
+              tone="metric"
+              label="Metric"
+            />
+          </div>
           <span className="bg-ink-650 h-5 w-px" />
           <RangePicker range={range} onChange={onRangeChange} accent={accent} />
         </div>
       </div>
 
-      <section className="px-[26px] pt-[22px] pb-3">
-        <div className="mb-1.5 flex items-baseline justify-between">
-          <h2 className="label-sm text-chalk-ghost">
-            {roomLabel(room)} / {METRIC_TITLES[metric]} — daily range, {spanDays} days
-          </h2>
-          <div className="text-chalk-faint flex items-center gap-4 text-[10px] tracking-[0.1em]">
-            <span className="flex items-center gap-1.5">
-              <span
-                className="h-[7px] w-3.5 rounded-sm"
-                style={{ background: withAlpha(accent, 0.1) }}
-              />
-              MIN–MAX BAND
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-0.5 w-3.5" style={{ background: accent }} />
-              DAILY AVERAGE
-            </span>
+      <Reveal>
+        <section className="px-[26px] pt-[22px] pb-3">
+          <div className="mb-1.5 flex items-center justify-between">
+            <h2 className="label-sm text-chalk-ghost flex items-center gap-2">
+              <MetricIcon size={13} strokeWidth={2} aria-hidden />
+              {roomLabel(room)} / {METRIC_TITLES[metric]} — daily range, {spanDays} days
+            </h2>
+            <div className="text-chalk-faint flex items-center gap-4 text-[10px] tracking-[0.1em]">
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="h-[7px] w-3.5 rounded-sm"
+                  style={{ background: withAlpha(accent, 0.1) }}
+                />
+                MIN–MAX BAND
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-0.5 w-3.5" style={{ background: accent }} />
+                DAILY AVERAGE
+              </span>
+            </div>
           </div>
-        </div>
-        <BandChart
-          points={points}
+          <BandChart
+            points={points}
+            metric={metric}
+            accent={accent}
+            loading={daily.loading && !daily.data}
+            error={daily.error}
+            animationKey={`${room}-${metric}-${spanDays}`}
+          />
+        </section>
+      </Reveal>
+
+      <Reveal>
+        <CompareStats
+          stats={stats}
           metric={metric}
           accent={accent}
+          quietDelta={quietDelta}
           loading={daily.loading && !daily.data}
-          animationKey={`${room}-${metric}-${spanDays}`}
+          error={daily.error}
         />
-      </section>
+      </Reveal>
 
-      <CompareStats stats={stats} metric={metric} accent={accent} quietDelta={quietDelta} />
-
-      <section className="px-[26px] pt-5 pb-6">
-        <div className="mb-3.5 flex items-baseline gap-3.5">
-          <h2 className="label-sm text-chalk-ghost">Day by day</h2>
-          <span className="text-chalk-faint text-[10.5px] tracking-[0.06em]">newest first</span>
-          {retention && (
-            <span className="text-chalk-trace text-[10px] tracking-[0.1em] uppercase">
-              raw {retention.rawDays}d → hourly forever
-            </span>
-          )}
-          <Pager page={page} onChange={setPageIndex} />
-        </div>
-        <DayTable rows={page.items} metric={metric} accent={accent} quietDelta={quietDelta} />
-      </section>
+      <Reveal>
+        <section className="px-[26px] pt-5 pb-6">
+          <div className="mb-3.5 flex items-center gap-3.5">
+            <h2 className="label-sm text-chalk-ghost flex items-center gap-2">
+              <CalendarDays size={13} strokeWidth={2} aria-hidden />
+              Day by day
+            </h2>
+            <span className="text-chalk-faint text-[10.5px] tracking-[0.06em]">newest first</span>
+            {retention && (
+              <span className="text-chalk-trace text-[10px] tracking-[0.1em] uppercase">
+                raw {retention.rawDays}d → hourly forever
+              </span>
+            )}
+            <Pager page={page} onChange={setPageIndex} />
+          </div>
+          <DayTable
+            rows={page.items}
+            metric={metric}
+            accent={accent}
+            quietDelta={quietDelta}
+            loading={daily.loading && !daily.data}
+            error={daily.error}
+          />
+        </section>
+      </Reveal>
     </div>
   )
 }

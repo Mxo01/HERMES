@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react'
+import { Grid3x3 } from 'lucide-react'
+import { ChartStatus } from '@/components/charts/ChartStatus'
 import { ChartTooltip } from '@/components/charts/ChartTooltip'
 import { formatDayShort, formatMetric } from '@/lib/format'
 import { withAlpha } from '@/lib/metrics'
@@ -10,6 +12,10 @@ interface HeatmapProps {
   hours: string[]
   accent: string
   metric: Metric
+  /** Distinguishes "still fetching" from "nothing to draw". */
+  loading?: boolean
+  /** A failed request — takes priority over the empty/loading message. */
+  error?: Error
 }
 
 interface Focus {
@@ -23,9 +29,10 @@ interface Focus {
  * Seven days by twenty-four hours. Reading down a column shows the daily
  * rhythm; reading across a row shows whether a day broke it.
  */
-export function Heatmap({ rows, hours, accent, metric }: HeatmapProps) {
+export function Heatmap({ rows, hours, accent, metric, loading = false, error }: HeatmapProps) {
   const container = useRef<HTMLDivElement>(null)
   const [focus, setFocus] = useState<Focus | null>(null)
+  const hasData = rows.some((row) => row.cells.some((cell) => cell.ratio !== null))
 
   const focusCell = (rowIndex: number, cellIndex: number, element: HTMLElement) => {
     const bounds = container.current?.getBoundingClientRect()
@@ -40,6 +47,14 @@ export function Heatmap({ rows, hours, accent, metric }: HeatmapProps) {
   }
 
   const active = focus ? rows[focus.row]?.cells[focus.cell] : undefined
+
+  if (!hasData) {
+    return (
+      <div className="border-ink-750 flex h-[190px] items-center justify-center rounded border border-dashed">
+        <ChartStatus loading={loading} error={error} emptyLabel="Not enough data yet" emptyIcon={Grid3x3} />
+      </div>
+    )
+  }
 
   return (
     <div className="relative" ref={container}>

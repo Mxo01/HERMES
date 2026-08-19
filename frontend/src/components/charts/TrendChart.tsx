@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { ChartLine } from 'lucide-react'
+import { ChartStatus } from '@/components/charts/ChartStatus'
 import { ChartTooltip } from '@/components/charts/ChartTooltip'
 import { useChartPointer } from '@/hooks/useChartPointer'
 import { useElementSize } from '@/hooks/useElementSize'
@@ -19,6 +21,8 @@ interface TrendChartProps {
   roomLabel: string
   /** Distinguishes "still fetching" from "nothing to draw". */
   loading?: boolean
+  /** A failed request — takes priority over the empty/loading message. */
+  error?: Error
   className?: string
   animationKey?: string
 }
@@ -35,6 +39,7 @@ export function TrendChart({
   accent,
   roomLabel,
   loading = false,
+  error,
   className,
   animationKey,
 }: TrendChartProps) {
@@ -73,9 +78,7 @@ export function TrendChart({
       <div className="absolute inset-0 z-[1]" {...pointer.handlers} ref={pointer.ref} />
 
       {!chart && (
-        <div className="label-xs text-chalk-trace flex h-full items-center justify-center">
-          {loading ? 'READING…' : 'NOT ENOUGH DATA YET'}
-        </div>
+        <ChartStatus loading={loading} error={error} emptyLabel="Not enough data yet" emptyIcon={ChartLine} />
       )}
 
       {chart && (

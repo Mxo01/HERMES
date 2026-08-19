@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
+import { Bell, Grid3x3, LayoutGrid, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Heatmap } from '@/components/charts/Heatmap'
 import { Tabs } from '@/components/controls/Tabs'
 import { AlarmTable } from '@/components/panels/AlarmLog'
 import { GasPanel } from '@/components/panels/GasPanel'
 import { HeroMetric } from '@/components/panels/HeroMetric'
 import { RoomComparison } from '@/components/panels/RoomComparison'
+import { Reveal } from '@/components/shared/Reveal'
 import { useHourly } from '@/hooks/useDashboardData'
 import { averages, extentOf, heatmapGrid, hourLabels, hourlySeries } from '@/lib/series'
 import { METRIC_TITLES, roomLabel } from '@/lib/metrics'
@@ -19,10 +21,20 @@ interface LiveViewProps {
   roomTabs: TabItem<Room>[]
   metricTabs: TabItem<EnvMetric>[]
   status: Status
+  /** True until the first live-status fetch resolves. */
+  statusLoading: boolean
+  /** A failed live-status request; the hero, gas panel and room grid keep the last good values. */
+  statusError: Error | undefined
   meta: Meta | undefined
   alarms: Alarm[]
+  /** True until the first alarm-log fetch resolves. */
+  alarmsLoading: boolean
+  alarmsError: Error | undefined
   accent: string
   compact: boolean
+  /** Desktop only: whether the nav rail is currently hidden. */
+  sidebarCollapsed: boolean
+  onToggleSidebar: () => void
 }
 
 const HEATMAP_DAYS = 7
@@ -35,10 +47,16 @@ export function LiveView({
   roomTabs,
   metricTabs,
   status,
+  statusLoading,
+  statusError,
   meta,
   alarms,
+  alarmsLoading,
+  alarmsError,
   accent,
   compact,
+  sidebarCollapsed,
+  onToggleSidebar,
 }: LiveViewProps) {
   // One 7-day request serves both the 24h hero chart and the heatmap.
   const week = useHourly(metric, HEATMAP_DAYS * 24)
@@ -80,6 +98,12 @@ export function LiveView({
 
   const lastGasAlarm = alarms.find((alarm) => alarm.kind === 'gas')
 
+  // The gas reading itself comes from the live-status socket/fetch, while its
+  // sparkline comes from the hourly history — either can fail independently.
+  const gasValueMissing = status[gasRoom]?.gas === undefined
+  const gasLoading = (statusLoading && gasValueMissing) || (gasHistory.loading && !gasHistory.data)
+  const gasError = statusError ?? gasHistory.error
+
   const heroPanel = (
     <HeroMetric
       room={room}
@@ -94,6 +118,7 @@ export function LiveView({
       labels={hero.labels}
       metricSpecs={meta?.metrics}
       loading={week.loading && !week.data}
+      error={week.error}
       compact={compact}
     />
   )
@@ -105,6 +130,8 @@ export function LiveView({
       series={gas.series}
       labels={gas.labels}
       lastSpike={lastGasAlarm}
+      loading={gasLoading}
+      error={gasError}
       compact={compact}
     />
   )
@@ -112,13 +139,16 @@ export function LiveView({
   if (compact) {
     return (
       <div className="flex flex-col">
-        <div className="flex gap-1.5 px-[18px] pt-1.5 pb-3">
+        <span className="text-chalk-trace mt-1.5 mb-1 block px-[18px] text-[9px] tracking-[0.14em] uppercase">
+          Room
+        </span>
+        <div className="flex gap-1.5 px-[18px] pb-2">
           <Tabs items={roomTabs} value={room} onChange={onRoomChange} layout="fill" label="Room" />
         </div>
-
-        {heroPanel}
-
-        <div className="flex gap-1.5 px-[18px] pb-4">
+        <span className="text-chalk-trace mb-1 block px-[18px] text-[9px] tracking-[0.14em] uppercase">
+          Metric
+        </span>
+        <div className="flex gap-1.5 px-[18px] pb-3">
           <Tabs
             items={metricTabs}
             value={metric}
@@ -129,19 +159,27 @@ export function LiveView({
           />
         </div>
 
+        {heroPanel}
         {gasPanel}
 
-        <section className="border-ink-650 border-t px-[18px] py-4">
-          <h2 className="label-xs text-chalk-ghost mb-3">All rooms</h2>
-          <RoomComparison
-            status={status}
-            rooms={rooms}
-            outsideRoom={outsideRoom}
-            outsideLocation={meta?.outsideLocation?.label}
-            metricSpecs={meta?.metrics}
-            compact
-          />
-        </section>
+        <Reveal>
+          <section className="border-ink-650 border-t px-[18px] py-4">
+            <h2 className="label-xs text-chalk-ghost mb-3 flex items-center gap-1.5">
+              <LayoutGrid size={11} strokeWidth={2} aria-hidden />
+              All rooms
+            </h2>
+            <RoomComparison
+              status={status}
+              rooms={rooms}
+              outsideRoom={outsideRoom}
+              outsideLocation={meta?.outsideLocation?.label}
+              metricSpecs={meta?.metrics}
+              loading={statusLoading}
+              error={statusError}
+              compact
+            />
+          </section>
+        </Reveal>
       </div>
     )
   }
@@ -149,7 +187,22 @@ export function LiveView({
   return (
     <div>
       <div className="border-ink-650 bg-ink-900 flex items-center justify-between border-b px-[26px] py-3">
-        <Tabs items={roomTabs} value={room} onChange={onRoomChange} label="Room" />
+        <div className="flex items-center gap-3.5">
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            className="text-chalk-ghost hover:text-chalk-dim hover:bg-ink-800 rounded-md p-1.5 transition-colors duration-150"
+            aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+            title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen size={15} strokeWidth={2} aria-hidden />
+            ) : (
+              <PanelLeftClose size={15} strokeWidth={2} aria-hidden />
+            )}
+          </button>
+          <Tabs items={roomTabs} value={room} onChange={onRoomChange} label="Room" />
+        </div>
         <div className="flex items-center gap-1.5">
           <span className="text-chalk-ghost mr-1.5 text-[10.5px] tracking-[0.16em]">METRIC</span>
           <Tabs
@@ -166,46 +219,68 @@ export function LiveView({
         {heroPanel}
         <div className="flex flex-col">
           {gasPanel}
-          <section className="px-6 py-5">
-            <h2 className="label-sm text-chalk-ghost mb-3.5">All rooms — side by side</h2>
-            <RoomComparison
-              status={status}
-              rooms={rooms}
-              outsideRoom={outsideRoom}
-              outsideLocation={meta?.outsideLocation?.label}
-              metricSpecs={meta?.metrics}
-            />
-          </section>
+          <Reveal>
+            <section className="px-6 py-5">
+              <h2 className="label-sm text-chalk-ghost mb-3.5 flex items-center gap-2">
+                <LayoutGrid size={13} strokeWidth={2} aria-hidden />
+                All rooms — side by side
+              </h2>
+              <RoomComparison
+                status={status}
+                rooms={rooms}
+                outsideRoom={outsideRoom}
+                outsideLocation={meta?.outsideLocation?.label}
+                metricSpecs={meta?.metrics}
+                loading={statusLoading}
+                error={statusError}
+              />
+            </section>
+          </Reveal>
         </div>
       </div>
 
-      <section className="border-ink-650 border-t px-[26px] py-5">
-        <div className="mb-3.5 flex items-baseline justify-between">
-          <h2 className="label-sm text-chalk-ghost">
-            Last {HEATMAP_DAYS} days — {roomLabel(room)} / {METRIC_TITLES[metric]}
-          </h2>
-          <div className="text-chalk-faint flex items-center gap-2 text-[10px] tracking-[0.1em]">
-            <span>LOW</span>
-            <span
-              className="h-[7px] w-[100px] rounded"
-              style={{ background: `linear-gradient(90deg,var(--color-ink-650),${accent})` }}
-            />
-            <span>HIGH</span>
+      <Reveal>
+        <section className="border-ink-650 border-t px-[26px] py-5">
+          <div className="mb-3.5 flex items-center justify-between">
+            <h2 className="label-sm text-chalk-ghost flex items-center gap-2">
+              <Grid3x3 size={13} strokeWidth={2} aria-hidden />
+              Last {HEATMAP_DAYS} days — {roomLabel(room)} / {METRIC_TITLES[metric]}
+            </h2>
+            <div className="text-chalk-faint flex items-center gap-2 text-[10px] tracking-[0.1em]">
+              <span>LOW</span>
+              <span
+                className="h-[7px] w-[100px] rounded"
+                style={{ background: `linear-gradient(90deg,var(--color-ink-650),${accent})` }}
+              />
+              <span>HIGH</span>
+            </div>
           </div>
-        </div>
-        <Heatmap rows={heat.rows} hours={heat.hours} accent={accent} metric={metric} />
-      </section>
+          <Heatmap
+            rows={heat.rows}
+            hours={heat.hours}
+            accent={accent}
+            metric={metric}
+            loading={week.loading && !week.data}
+            error={week.error}
+          />
+        </section>
+      </Reveal>
 
-      <section className="border-ink-650 bg-ink-900 border-t px-[26px] py-5">
-        <div className="mb-3.5 flex items-baseline gap-3.5">
-          <h2 className="label-sm text-chalk-ghost">Alarm log</h2>
-          <span className="text-chalk-faint text-[10.5px] tracking-[0.06em]">
-            last 14 days · {alarms.length} event{alarms.length === 1 ? '' : 's'} ·{' '}
-            {alarms.filter((alarm) => alarm.notified).length} sent to telegram
-          </span>
-        </div>
-        <AlarmTable alarms={alarms} />
-      </section>
+      <Reveal>
+        <section className="border-ink-650 bg-ink-900 border-t px-[26px] py-5">
+          <div className="mb-3.5 flex items-center gap-3.5">
+            <h2 className="label-sm text-chalk-ghost flex items-center gap-2">
+              <Bell size={13} strokeWidth={2} aria-hidden />
+              Alarm log
+            </h2>
+            <span className="text-chalk-faint text-[10.5px] tracking-[0.06em]">
+              last 14 days · {alarms.length} event{alarms.length === 1 ? '' : 's'} ·{' '}
+              {alarms.filter((alarm) => alarm.notified).length} sent to telegram
+            </span>
+          </div>
+          <AlarmTable alarms={alarms} loading={alarmsLoading} error={alarmsError} />
+        </section>
+      </Reveal>
     </div>
   )
 }

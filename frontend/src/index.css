@@ -155,6 +155,11 @@
   html {
     color-scheme: dark;
     background: var(--color-ink-950);
+    /* The instrument reads as a fixed panel, not a web page — a visible
+       scrollbar would break that. Scrolling still works; only the track and
+       thumb are invisible. */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
 
   body {
@@ -170,18 +175,8 @@
     cursor: pointer;
   }
 
-  ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: var(--color-ink-900);
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: var(--color-ink-500);
-    border-radius: 5px;
+  html::-webkit-scrollbar {
+    display: none;
   }
 
   @media (prefers-reduced-motion: reduce) {

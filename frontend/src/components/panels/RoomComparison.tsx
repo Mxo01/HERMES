@@ -1,5 +1,6 @@
+import { AnimatedValue } from '@/components/shared/AnimatedValue'
 import { formatMetric, percent } from '@/lib/format'
-import { ACCENT, ENV_METRICS, METRIC_TITLES, metricSpan, roomLabel } from '@/lib/metrics'
+import { ACCENT, ENV_METRICS, METRIC_ICONS, METRIC_TITLES, metricSpan, roomLabel } from '@/lib/metrics'
 import { cn } from '@/lib/utils'
 import type { EnvMetric, Metric, MetricSpec, Room, Status } from '@/lib/types'
 
@@ -12,6 +13,10 @@ interface RoomComparisonProps {
   /** Metric catalog from /api/meta; the bars are scaled against it. */
   metricSpecs?: Record<Metric, MetricSpec>
   compact?: boolean
+  /** True until the first live-status fetch resolves. */
+  loading?: boolean
+  /** A failed live-status request — the bars keep showing the last good values. */
+  error?: Error
 }
 
 const SHORT_LABELS: Record<EnvMetric, string> = {
@@ -33,8 +38,11 @@ export function RoomComparison({
   outsideLocation,
   metricSpecs,
   compact = false,
+  loading = false,
+  error,
 }: RoomComparisonProps) {
   const ordered = [...rooms.filter((room) => room !== outsideRoom), outsideRoom]
+  const hasReadings = ordered.some((room) => ENV_METRICS.some((metric) => status[room]?.[metric] !== undefined))
 
   return (
     <div
@@ -44,16 +52,31 @@ export function RoomComparison({
       )}
       style={{ gridTemplateColumns: `${compact ? 72 : 78}px repeat(3, 1fr)` }}
     >
-      <span />
-      {ENV_METRICS.map((metric) => (
-        <span
-          key={metric}
-          className="text-chalk-ghost uppercase"
-          style={{ fontSize: compact ? 8.5 : 9.5, letterSpacing: compact ? '0.12em' : '0.14em' }}
+      {(error || (loading && !hasReadings)) && (
+        <div
+          className={cn(
+            'col-span-4 text-[10px] tracking-[0.1em] uppercase',
+            error ? 'text-signal-alert' : 'text-chalk-faint',
+          )}
         >
-          {compact ? SHORT_LABELS[metric] : METRIC_TITLES[metric]}
-        </span>
-      ))}
+          {error ? "Couldn't refresh live status" : 'Loading…'}
+        </div>
+      )}
+
+      <span />
+      {ENV_METRICS.map((metric) => {
+        const Icon = METRIC_ICONS[metric]
+        return (
+          <span
+            key={metric}
+            className="text-chalk-ghost flex items-center gap-1 uppercase"
+            style={{ fontSize: compact ? 8.5 : 9.5, letterSpacing: compact ? '0.12em' : '0.14em' }}
+          >
+            <Icon size={compact ? 10 : 11} strokeWidth={2} aria-hidden />
+            {compact ? SHORT_LABELS[metric] : METRIC_TITLES[metric]}
+          </span>
+        )
+      })}
 
       {ordered.map((room) => {
         const outdoor = room === outsideRoom
@@ -87,7 +110,7 @@ export function RoomComparison({
                       marginBottom: compact ? 4 : 5,
                     }}
                   >
-                    {formatMetric(value, metric)}
+                    <AnimatedValue value={value} format={(v) => formatMetric(v, metric)} />
                   </div>
                   <div
                     className="bg-ink-650 overflow-hidden rounded-sm"
