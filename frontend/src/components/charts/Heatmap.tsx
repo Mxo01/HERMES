@@ -50,7 +50,7 @@ export function Heatmap({ rows, hours, accent, metric, loading = false, error }:
 
   if (!hasData) {
     return (
-      <div className="border-ink-750 flex h-[190px] items-center justify-center rounded border border-dashed">
+      <div className="border-white/10 flex h-[190px] items-center justify-center rounded border border-dashed">
         <ChartStatus loading={loading} error={error} emptyLabel="Not enough data yet" emptyIcon={Grid3x3} />
       </div>
     )
@@ -114,6 +114,7 @@ export function Heatmap({ rows, hours, accent, metric, loading = false, error }:
           x={focus.x}
           y={focus.y}
           containerWidth={container.current?.clientWidth ?? 0}
+          containerRef={container}
           rows={[
             {
               label: 'Hourly avg',

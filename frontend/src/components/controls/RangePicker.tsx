@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   RANGE_PRESETS,
@@ -33,9 +34,20 @@ export function RangePicker({ range, onChange, accent, variant = 'popover' }: Ra
   const [pendingStart, setPendingStart] = useState<Date | null>(null)
   const [anchor, setAnchor] = useState(() => new Date(range.to.getFullYear(), range.to.getMonth() - 1, 1))
   const container = useRef<HTMLDivElement>(null)
+  // Every glass card is its own stacking context (backdrop-filter forces
+  // one) — a popover positioned normally inside the header card can never
+  // paint above the card that follows it, no matter its z-index. Same fix
+  // as the chart tooltip: portal it to the body and place it from a
+  // measured screen rect instead.
+  const [panelRect, setPanelRect] = useState<{ top: number; right: number } | null>(null)
+  // Sheet only: true for the duration of the slide-down, so the sheet stays
+  // mounted (and animating) after `open` would otherwise have gone false.
+  const [closing, setClosing] = useState(false)
 
   const today = startOfDay(new Date())
   const spanDays = daysBetween(range.from, range.to)
+
+  const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -44,7 +56,13 @@ export function RangePicker({ range, onChange, accent, variant = 'popover' }: Ra
       if (event.key === 'Escape') close()
     }
     const onPointer = (event: MouseEvent) => {
-      if (container.current && !container.current.contains(event.target as Node)) close()
+      const target = event.target as Node
+      // The popover panel is portaled to <body>, so it's no longer a DOM
+      // descendant of `container` — it needs its own check or every click
+      // inside it would look like an outside click and close it instantly.
+      const insideTrigger = container.current?.contains(target)
+      const insidePanel = panelRef.current?.contains(target)
+      if (!insideTrigger && !insidePanel) close()
     }
 
     window.addEventListener('keydown', onKey)
@@ -55,8 +73,42 @@ export function RangePicker({ range, onChange, accent, variant = 'popover' }: Ra
     }
   })
 
+  useLayoutEffect(() => {
+    if (!open || variant !== 'popover') return
+    const trigger = container.current
+    if (!trigger) return
+
+    const sync = () => {
+      const rect = trigger.getBoundingClientRect()
+      setPanelRect({ top: rect.bottom + 8, right: window.innerWidth - rect.right })
+    }
+    sync()
+
+    window.addEventListener('scroll', sync, true)
+    window.addEventListener('resize', sync)
+    return () => {
+      window.removeEventListener('scroll', sync, true)
+      window.removeEventListener('resize', sync)
+    }
+  }, [open, variant])
+
   function close() {
+    // The sheet needs to stay mounted long enough to play its slide-down —
+    // setting `open` false immediately would unmount it mid-animation.
+    // `finishClose`, wired to the panel's `onAnimationEnd`, does the actual
+    // unmount once that's done. The popover has no exit animation, so it
+    // can just close outright.
+    if (variant === 'sheet' && open) {
+      setClosing(true)
+      return
+    }
     setOpen(false)
+    setPendingStart(null)
+  }
+
+  function finishClose() {
+    setOpen(false)
+    setClosing(false)
     setPendingStart(null)
   }
 
@@ -146,7 +198,7 @@ export function RangePicker({ range, onChange, accent, variant = 'popover' }: Ra
       <button
         type="button"
         onClick={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1))}
-        className="text-chalk-muted rounded-[5px] bg-[#151518] px-3 py-1.5 hover:text-chalk-dim"
+        className="glass-sm text-chalk-muted rounded-[5px] px-3 py-1.5 hover:text-chalk-dim"
         aria-label="Previous month"
       >
         <ChevronLeft size={13} strokeWidth={2} aria-hidden />
@@ -165,7 +217,7 @@ export function RangePicker({ range, onChange, accent, variant = 'popover' }: Ra
       <button
         type="button"
         onClick={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1))}
-        className="text-chalk-muted rounded-[5px] bg-[#151518] px-3 py-1.5 hover:text-chalk-dim"
+        className="glass-sm text-chalk-muted rounded-[5px] px-3 py-1.5 hover:text-chalk-dim"
         aria-label="Next month"
       >
         <ChevronRight size={13} strokeWidth={2} aria-hidden />
@@ -179,11 +231,10 @@ export function RangePicker({ range, onChange, accent, variant = 'popover' }: Ra
       onClick={() => (open ? close() : setOpen(true))}
       aria-expanded={open}
       className={cn(
-        'tabular text-chalk-dim flex items-center gap-2.5 rounded-md border transition-colors duration-150',
+        'glass-sm tabular text-chalk-dim flex items-center gap-2.5 rounded-md transition-colors duration-150',
         variant === 'sheet' ? 'w-full px-3.5 py-3.5 text-[11.5px]' : 'px-3.5 py-[7px] text-[11.5px]',
-        open ? 'border-ink-400 bg-ink-650' : 'border-ink-650 bg-ink-800',
       )}
-      style={{ letterSpacing: '0.14em' }}
+      style={{ letterSpacing: '0.14em', borderColor: open ? 'rgb(255 255 255 / 0.2)' : undefined }}
     >
       <Calendar size={13} strokeWidth={2} className="text-chalk-ghost shrink-0" aria-hidden />
       {label}
@@ -200,16 +251,24 @@ export function RangePicker({ range, onChange, accent, variant = 'popover' }: Ra
     return (
       <div ref={container}>
         {trigger}
-        {open && (
+        {(open || closing) && (
           <div className="fixed inset-0 z-30 flex flex-col justify-end">
             <button
               type="button"
               aria-label="Close date picker"
               onClick={close}
-              className="absolute inset-0 bg-[rgba(8,8,9,.72)]"
-              style={{ animation: 'fade-in .2s ease both' }}
+              className={cn(
+                'absolute inset-0 bg-[rgba(8,8,9,.72)]',
+                closing ? 'animate-fade-out' : 'animate-fade-in',
+              )}
             />
-            <div className="animate-rise border-ink-500 relative rounded-t-[18px] border-t bg-ink-850 px-[18px] pt-4 pb-[22px]">
+            <div
+              className={cn(
+                'glass relative rounded-t-[18px] px-[18px] pt-4 pb-[22px]',
+                closing ? 'animate-sheet-out' : 'animate-sheet-in',
+              )}
+              onAnimationEnd={() => closing && finishClose()}
+            >
               <div className="bg-ink-500 mx-auto mb-4 h-1 w-[38px] rounded-sm" />
               {monthNav}
               {calendar(38, 12.5)}
@@ -221,10 +280,10 @@ export function RangePicker({ range, onChange, accent, variant = 'popover' }: Ra
                     type="button"
                     onClick={() => applyPreset(preset.days)}
                     className={cn(
-                      'border-ink-600 rounded-lg border py-3 text-[10.5px] tracking-[0.12em]',
+                      'rounded-lg py-3 text-[10.5px] tracking-[0.12em]',
                       spanDays === preset.days && sameDay(range.to, today)
-                        ? 'bg-ink-600 text-chalk'
-                        : 'text-chalk-soft',
+                        ? 'bg-chalk text-ink-950'
+                        : 'glass-sm text-chalk-soft',
                     )}
                   >
                     {preset.label}
@@ -241,35 +300,42 @@ export function RangePicker({ range, onChange, accent, variant = 'popover' }: Ra
   return (
     <div className="relative" ref={container}>
       {trigger}
-      {open && (
-        <div className="animate-rise border-ink-500 bg-ink-850 absolute top-11 right-0 z-20 flex rounded-[10px] border shadow-[0_18px_50px_rgba(0,0,0,.65)]">
-          <div className="border-ink-650 flex min-w-[152px] flex-col gap-0.5 border-r px-3 py-4">
-            <span className="text-chalk-ghost px-3 pb-2 text-[9.5px] tracking-[0.16em]">PRESETS</span>
-            {RANGE_PRESETS.map((preset) => (
-              <button
-                key={preset.days}
-                type="button"
-                onClick={() => applyPreset(preset.days)}
-                className={cn(
-                  'rounded-[5px] px-3 py-[7px] text-left text-[10.5px] tracking-[0.12em] whitespace-nowrap transition-colors duration-150 hover:text-chalk-dim',
-                  spanDays === preset.days && sameDay(range.to, today)
-                    ? 'bg-ink-600 text-chalk'
-                    : 'text-chalk-soft',
-                )}
-              >
-                {preset.label}
-              </button>
-            ))}
-            <span className="text-chalk-ghost px-3 pt-3.5 text-[9.5px] leading-[1.5] tracking-[0.1em]">
-              {hint}
-            </span>
-          </div>
-          <div className="px-[18px] py-4">
-            {monthNav}
-            {calendar(26, 11)}
-          </div>
-        </div>
-      )}
+      {open &&
+        panelRect &&
+        createPortal(
+          <div
+            ref={panelRef}
+            className="glass animate-rise fixed z-20 flex rounded-[10px]"
+            style={{ top: panelRect.top, right: panelRect.right }}
+          >
+            <div className="border-white/10 flex min-w-[152px] flex-col gap-0.5 border-r px-3 py-4">
+              <span className="text-chalk-ghost px-3 pb-2 text-[9.5px] tracking-[0.16em]">PRESETS</span>
+              {RANGE_PRESETS.map((preset) => (
+                <button
+                  key={preset.days}
+                  type="button"
+                  onClick={() => applyPreset(preset.days)}
+                  className={cn(
+                    'rounded-[5px] px-3 py-[7px] text-left text-[10.5px] tracking-[0.12em] whitespace-nowrap transition-colors duration-150 hover:text-chalk-dim',
+                    spanDays === preset.days && sameDay(range.to, today)
+                      ? 'bg-chalk text-ink-950'
+                      : 'text-chalk-soft',
+                  )}
+                >
+                  {preset.label}
+                </button>
+              ))}
+              <span className="text-chalk-ghost px-3 pt-3.5 text-[9.5px] leading-[1.5] tracking-[0.1em]">
+                {hint}
+              </span>
+            </div>
+            <div className="px-[18px] py-4">
+              {monthNav}
+              {calendar(26, 11)}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

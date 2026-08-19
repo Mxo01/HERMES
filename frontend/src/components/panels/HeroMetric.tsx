@@ -69,7 +69,15 @@ export function HeroMetric({
           : 'LOWER INSIDE'
 
   return (
-    <div className={cn('relative overflow-hidden', compact ? 'px-[18px] pb-4' : 'border-ink-650 border-r p-6')}>
+    <div
+      className={cn(
+        // Not overflow-hidden: the trend chart's hover tooltip needs to spill
+        // past this card's edge sometimes, and clipping it here was cutting
+        // it off instead.
+        'glass relative rounded-2xl',
+        compact ? 'mx-[18px] mt-2 mb-4 px-[18px] py-4' : 'p-6',
+      )}
+    >
       <div className={cn('text-chalk-ghost mb-1.5', compact ? 'label-xs' : 'label-sm')}>
         {roomLabel(room)} / {METRIC_TITLES[metric]}
       </div>
@@ -132,7 +140,7 @@ export function HeroMetric({
               {deltaWord}
             </div>
           ) : (
-            <div className="bg-ink-650 mt-2 h-1 w-[220px] overflow-hidden rounded-sm">
+            <div className="bg-white/8 mt-2 h-1 w-[220px] overflow-hidden rounded-sm">
               <div
                 className="animate-grow h-1 rounded-sm"
                 style={{ background: deltaColor, width: deltaWidth }}

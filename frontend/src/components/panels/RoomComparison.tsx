@@ -113,7 +113,7 @@ export function RoomComparison({
                     <AnimatedValue value={value} format={(v) => formatMetric(v, metric)} />
                   </div>
                   <div
-                    className="bg-ink-650 overflow-hidden rounded-sm"
+                    className="bg-white/8 overflow-hidden rounded-sm"
                     style={{ height: compact ? 3 : 4 }}
                   >
                     <div

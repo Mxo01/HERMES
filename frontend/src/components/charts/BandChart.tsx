@@ -197,6 +197,7 @@ export function BandChart({
             x={hovered.x}
             containerWidth={hovered.width}
             side="auto"
+            containerRef={ref}
             rows={[
               { label: 'Max', value: formatMetric(day.max, metric), color: withAlpha(accent, 0.45) },
               { label: 'Avg', value: formatMetric(day.avg, metric), color: accent },

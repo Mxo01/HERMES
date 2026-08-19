@@ -20,9 +20,11 @@ export function ErrorBanner({ message, compact = false }: ErrorBannerProps) {
         compact ? 'px-[18px] py-2' : 'px-[26px] py-2',
       )}
       style={{
-        background: 'rgba(232,115,74,.08)',
+        background: 'rgba(232,115,74,.1)',
         borderColor: 'rgba(232,115,74,.28)',
         color: 'var(--color-signal-alert)',
+        backdropFilter: 'blur(18px) saturate(130%)',
+        WebkitBackdropFilter: 'blur(18px) saturate(130%)',
       }}
     >
       <TriangleAlert size={13} strokeWidth={2} className="shrink-0" aria-hidden />

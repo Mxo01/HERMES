@@ -15,7 +15,7 @@ interface RangeBarProps {
 /** The day's min–max span, positioned within the range, with a dot at the average. */
 function RangeBar({ row, accent, height = 8 }: RangeBarProps) {
   return (
-    <div className="bg-ink-800 relative rounded" style={{ height }}>
+    <div className="bg-white/8 relative rounded" style={{ height }}>
       <div
         className="absolute top-0 rounded"
         style={{ height, background: accent, opacity: 0.32, left: row.barLeft, width: row.barWidth }}
@@ -71,7 +71,7 @@ export function DayTable({ rows, metric, accent, quietDelta, loading, error }: D
   return (
     <div role="table">
       <div
-        className="border-ink-650 text-chalk-ghost grid items-center gap-x-3.5 border-b pb-[9px] text-[9.5px] tracking-[0.14em]"
+        className="border-white/10 text-chalk-ghost grid items-center gap-x-3.5 border-b pb-[9px] text-[9.5px] tracking-[0.14em]"
         style={{ gridTemplateColumns: COLUMNS }}
         role="row"
       >
@@ -89,7 +89,7 @@ export function DayTable({ rows, metric, accent, quietDelta, loading, error }: D
         <div
           key={row.key}
           role="row"
-          className="border-ink-750 tabular grid items-center gap-x-3.5 border-b py-[9px] text-[11.5px] tracking-[0.04em]"
+          className="border-white/8 tabular grid items-center gap-x-3.5 border-b py-[9px] text-[11.5px] tracking-[0.04em]"
           style={{ gridTemplateColumns: COLUMNS, animation: `fade-in .5s ${index * 28}ms both` }}
         >
           <span className="text-chalk-dim">
@@ -146,7 +146,7 @@ export function DayRows({ rows, metric, accent, loading, error }: Omit<DayTableP
       {rows.map((row) => (
         <div
           key={row.key}
-          className="border-ink-750 tabular grid items-center gap-x-2.5 border-b py-[9px] text-[11px] tracking-[0.04em]"
+          className="border-white/8 tabular grid items-center gap-x-2.5 border-b py-[9px] text-[11px] tracking-[0.04em]"
           style={{ gridTemplateColumns: '64px 54px 1fr 40px' }}
         >
           <span className="text-chalk-dim">{row.date}</span>

@@ -111,6 +111,36 @@
   }
 }
 
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* The mobile date picker's bottom sheet: a real off-screen slide, not the
+   14px nudge `rise` gives a popover — a sheet that covers most of the
+   screen needs to visibly travel to read as opening/closing, not fading. */
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
 @utility animate-draw-line {
   stroke-dasharray: 1;
   animation: draw 1.4s ease-out both;
@@ -133,6 +163,22 @@
   animation: cell-in 0.5s both;
 }
 
+@utility animate-fade-in {
+  animation: fade-in 0.2s ease both;
+}
+
+@utility animate-fade-out {
+  animation: fade-out 0.2s ease both;
+}
+
+@utility animate-sheet-in {
+  animation: sheet-in 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@utility animate-sheet-out {
+  animation: sheet-out 0.22s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
 /* Uppercase micro-labels carry the instrument's hierarchy; the tracking is
    what makes them read as annotation rather than content. */
 @utility label-xs {
@@ -151,6 +197,33 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * Glass, the one surface language for every panel, card and control — no
+ * more flat ink rectangles sitting next to frosted ones. `glass` is for
+ * anything roomy enough to carry a real shadow (cards, sections, tooltips);
+ * `glass-sm` is the same material without the elevation, for controls small
+ * or numerous enough that a heavy shadow on each would turn to noise —
+ * tabs, pills, buttons. `saturate` is doing real work in both: without it,
+ * blurring the backdrop just darkens it, and the whole point is that colour
+ * survives the glass.
+ */
+@utility glass {
+  background: linear-gradient(160deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.015));
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow:
+    0 8px 28px rgb(0 0 0 / 0.35),
+    inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+@utility glass-sm {
+  background: rgb(255 255 255 / 0.045);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  border: 1px solid rgb(255 255 255 / 0.07);
+}
+
 @layer base {
   html {
     color-scheme: dark;
@@ -164,15 +237,54 @@
 
   body {
     margin: 0;
-    background: var(--color-ink-950);
     color: var(--color-chalk);
     font-family: var(--font-mono);
     -webkit-font-smoothing: antialiased;
+    /* What the glass is actually made of. Two soft washes, not an aurora —
+       just enough colour for blur and saturate to have something to carry,
+       everywhere else it fades to the same near-black the panels sit on.
+       The dot grid on top is texture, not decoration — it's what makes the
+       blur behind each panel read as glass over *something* rather than
+       glass over a flat void. */
+    background-color: var(--color-ink-950);
+    background-image:
+      radial-gradient(ellipse 65% 55% at 12% 8%, oklch(0.5 0.08 55 / 0.14), transparent 65%),
+      radial-gradient(ellipse 60% 50% at 88% 96%, oklch(0.48 0.07 230 / 0.12), transparent 65%),
+      radial-gradient(circle, rgb(255 255 255 / 0.06) 1px, transparent 1px);
+    background-size:
+      auto,
+      auto,
+      24px 24px;
+    background-attachment: fixed;
   }
 
   button {
     font-family: inherit;
     cursor: pointer;
+    /* The tactile press, on every button in the app — !important because
+       most buttons also carry their own `transition-colors`-style utility,
+       which sets the same `transition-property` and would otherwise drop
+       `transform` from the list, leaving the press to snap instead of ease. */
+    transition-property: transform, color, background-color, border-color, opacity !important;
+    transition-duration: 140ms !important;
+    transition-timing-function: ease-out !important;
+  }
+
+  button:active {
+    transform: scale(0.96);
+  }
+
+  /* The browser's default focus ring reads as a stray white outline against
+     glass, and it was showing on every click, not just keyboard nav. Kept
+     for :focus-visible only — the press itself is feedback enough for a
+     pointer click. */
+  button:focus {
+    outline: none;
+  }
+
+  button:focus-visible {
+    outline: 2px solid rgb(255 255 255 / 0.35);
+    outline-offset: 2px;
   }
 
   html::-webkit-scrollbar {

@@ -57,11 +57,12 @@ export function GasPanel({
   return (
     <div
       className={cn(
+        'glass',
         variant === 'card'
-          ? 'border-ink-650 bg-ink-900 mx-[18px] mb-3.5 rounded-xl border p-4'
+          ? 'mx-[18px] mb-3.5 rounded-xl p-4'
           : compact
-            ? 'border-ink-650 bg-ink-900 border-t px-[18px] py-4'
-            : 'border-ink-650 bg-ink-900 border-b px-6 py-5',
+            ? 'mx-[18px] mb-4 rounded-2xl px-[18px] py-4'
+            : 'rounded-2xl px-6 py-5',
       )}
     >
       <div className="mb-3 flex items-center gap-2.5">
@@ -125,7 +126,7 @@ export function GasPanel({
 
       {/* The tick at 100% marks the alarm threshold, so the bar reads as a
           distance-to-alarm rather than a bare percentage. */}
-      <div className="bg-ink-650 relative mt-4 h-2 rounded">
+      <div className="bg-white/8 relative mt-4 h-2 rounded">
         <div className="animate-grow h-2 rounded" style={{ background: color, width: fill }} />
         <div className="bg-signal-alert absolute top-[-4px] left-full h-4 w-0.5" aria-hidden />
       </div>

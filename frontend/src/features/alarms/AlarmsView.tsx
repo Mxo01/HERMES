@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { Bell } from 'lucide-react'
 import { AlarmCards } from '@/components/panels/AlarmLog'
 import { GasPanel } from '@/components/panels/GasPanel'
 import { Reveal } from '@/components/shared/Reveal'
@@ -50,10 +49,7 @@ export function AlarmsView({
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between px-[18px] pt-3.5 pb-3">
-        <span className="flex items-center gap-2 text-[12px] font-semibold tracking-[0.3em]">
-          <Bell size={14} strokeWidth={2} aria-hidden />
-          ALARMS
-        </span>
+        <span className="text-[12px] font-semibold tracking-[0.3em]">ALARMS</span>
         <span className="text-chalk-faint text-[10px] tracking-[0.1em]">
           {days} DAYS · {alarms.length} EVENT{alarms.length === 1 ? '' : 'S'}
         </span>

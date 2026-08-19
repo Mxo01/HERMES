@@ -141,7 +141,7 @@ export default function App() {
       // The phone layout is tuned for ~390px. On a tablet it is centred and
       // capped rather than stretched, so line lengths and the hero number keep
       // the proportions the design calls for.
-      <div className="bg-ink-950 mx-auto flex min-h-dvh w-full max-w-[560px] flex-col">
+      <div className="mx-auto flex min-h-dvh w-full max-w-[560px] flex-col">
         {effectiveView !== 'alarms' && (
           <header className="flex items-center justify-between px-[18px] pt-3.5 pb-2.5">
             <span className="text-[12px] font-semibold tracking-[0.3em]">
@@ -172,10 +172,10 @@ export default function App() {
           <ErrorBanner message="Couldn't reach the HERMES API — some data may be stale or missing." compact />
         )}
 
-        {/* Not flex-1: short pages should end with their content, not stretch
-            to fill the screen. The tab bar follows right after in normal
-            flow — its own padding is what gives it clearance, not this. */}
-        <main>{body}</main>
+        {/* The tab bar is fixed, out of this flow entirely, so it no longer
+            gives the last section clearance on its own — pb-24 stands in
+            for the space it would otherwise take up. */}
+        <main className="pb-24">{body}</main>
 
         <BottomTabs view={effectiveView} onChange={setView} alarmCount={alarms.length} />
       </div>
@@ -188,19 +188,18 @@ export default function App() {
   return (
     // Fixed to the viewport with the scroll moved onto the content column, so
     // the rail never travels with the page — it's chrome, not content.
-    <div className="bg-ink-950 flex h-dvh overflow-hidden">
-      {!sidebarCollapsed && (
-        <Sidebar
-          view={effectiveView}
-          onViewChange={setView}
-          connected={connected}
-          alarmCount={alarmsLast7Days}
-          nodes={nodes.data ?? []}
-          nodesLoading={nodes.loading}
-          now={now}
-          retentionNote={retentionNote}
-        />
-      )}
+    <div className="flex h-dvh overflow-hidden">
+      <Sidebar
+        view={effectiveView}
+        onViewChange={setView}
+        connected={connected}
+        alarmCount={alarmsLast7Days}
+        nodes={nodes.data ?? []}
+        nodesLoading={nodes.loading}
+        now={now}
+        retentionNote={retentionNote}
+        collapsed={sidebarCollapsed}
+      />
       <div className="min-w-0 flex-1 overflow-y-auto">
         {apiError && (
           <ErrorBanner message="Couldn't reach the HERMES API — some data may be stale or missing." />
