@@ -118,6 +118,7 @@ export function Sparkline({
             x={hovered.x}
             y={size.height + 4}
             containerWidth={hovered.width}
+            containerRef={ref}
             rows={[
               {
                 label: seriesLabel,

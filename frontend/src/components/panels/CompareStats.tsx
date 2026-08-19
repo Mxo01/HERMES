@@ -41,8 +41,8 @@ export function CompareStats({
     return (
       <div
         className={cn(
-          'text-[10.5px] tracking-[0.1em] uppercase',
-          compact ? 'px-[18px] py-2.5' : 'border-ink-650 bg-ink-900 border-y px-6 py-4',
+          'glass text-[10.5px] tracking-[0.1em] uppercase',
+          compact ? 'mx-[18px] mb-4 rounded-2xl px-[18px] py-2.5' : 'rounded-2xl px-6 py-4',
           error ? 'text-signal-alert' : 'text-chalk-faint',
         )}
       >
@@ -53,9 +53,12 @@ export function CompareStats({
 
   if (compact) {
     return (
-      <div className="flex flex-col gap-px px-[18px] pt-2 pb-1">
+      <div className="glass mx-[18px] mb-4 flex flex-col gap-px rounded-2xl px-[18px] pt-2 pb-1">
         {stats.map((stat) => (
-          <div key={stat.label} className="border-ink-700 flex items-baseline gap-2.5 border-b py-[11px]">
+          <div
+            key={stat.label}
+            className="border-white/10 flex items-baseline gap-2.5 border-b py-[11px] last:border-b-0"
+          >
             <span className="text-chalk-ghost w-[74px] text-[9.5px] tracking-[0.16em]">{stat.label}</span>
             <span className="tabular text-[22px] font-medium tracking-[-0.03em]">
               <AnimatedValue value={stat.now} format={(v) => formatMetric(v, metric)} />
@@ -73,9 +76,9 @@ export function CompareStats({
   }
 
   return (
-    <div className="border-ink-650 bg-ink-900 grid grid-cols-3 border-y">
+    <div className="glass grid grid-cols-3 rounded-2xl">
       {stats.map((stat) => (
-        <div key={stat.label} className="border-ink-650 border-r px-6 py-4">
+        <div key={stat.label} className="border-white/10 border-r px-6 py-4 last:border-r-0">
           <div className="label-xs text-chalk-ghost mb-2.5">
             {stat.label} · second half vs first half
           </div>

@@ -1,3 +1,5 @@
+import { useLayoutEffect, useState, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 
 export interface TooltipRow {
@@ -22,6 +24,14 @@ interface ChartTooltipProps {
    */
   side?: 'auto' | 'center'
   note?: string
+  /**
+   * The chart's own measured element. Every glass card has its own
+   * `backdrop-filter`, which creates a stacking context — a tooltip
+   * positioned normally inside one can never paint above a later sibling
+   * card, no matter its z-index. Portaling to `document.body` and
+   * positioning from this element's screen rect sidesteps that entirely.
+   */
+  containerRef: RefObject<HTMLElement | null>
 }
 
 const WIDTH = 168
@@ -41,6 +51,7 @@ export function ChartTooltip({
   y = 0,
   side = 'center',
   note,
+  containerRef,
 }: ChartTooltipProps) {
   const anchored =
     side === 'auto' ? (x > containerWidth / 2 ? x - WIDTH - OFFSET : x + OFFSET) : x - WIDTH / 2
@@ -48,14 +59,36 @@ export function ChartTooltip({
   // Keep the panel inside the chart rather than letting it clip at the edges.
   const left = Math.max(EDGE, Math.min(containerWidth - WIDTH - EDGE, anchored))
 
-  return (
+  const [screen, setScreen] = useState<{ left: number; top: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    setScreen({ left: rect.left + left, top: rect.top + y })
+  }, [containerRef, left, y])
+
+  if (!screen) return null
+
+  return createPortal(
     <div
       role="tooltip"
-      className={cn(
-        'border-ink-500 bg-ink-850 pointer-events-none absolute z-10 rounded-lg border px-3 py-2.5',
-        'shadow-[0_12px_32px_rgba(0,0,0,.6)]',
-      )}
-      style={{ left, top: y, width: WIDTH, animation: 'fade-in .12s ease both' }}
+      className="pointer-events-none fixed z-[100] rounded-lg px-3 py-2.5"
+      style={{
+        left: screen.left,
+        top: screen.top,
+        width: WIDTH,
+        animation: 'fade-in .12s ease both',
+        // A denser fill than the standard `glass` surface — this floats over
+        // whatever's behind the chart at the moment, and needs to stay
+        // legible against light and dark series alike rather than the usual
+        // panel-on-background contrast the lighter glass is tuned for.
+        background: 'rgb(20 20 23 / 0.92)',
+        backdropFilter: 'blur(18px) saturate(130%)',
+        WebkitBackdropFilter: 'blur(18px) saturate(130%)',
+        border: '1px solid rgb(255 255 255 / 0.1)',
+        boxShadow: '0 8px 28px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.06)',
+      }}
     >
       <div className="text-chalk-ghost mb-2 text-[9.5px] tracking-[0.16em] uppercase">{title}</div>
 
@@ -90,10 +123,11 @@ export function ChartTooltip({
       </div>
 
       {note && (
-        <div className="border-ink-650 text-chalk-trace mt-2 border-t pt-2 text-[9px] tracking-[0.1em] uppercase">
+        <div className="border-white/10 text-chalk-trace mt-2 border-t pt-2 text-[9px] tracking-[0.1em] uppercase">
           {note}
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }

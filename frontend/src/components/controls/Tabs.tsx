@@ -64,8 +64,8 @@ export function Tabs<T extends string>({
                   ? 'bg-chalk text-ink-950'
                   : 'text-ink-950'
                 : tone === 'room'
-                  ? 'bg-ink-800 text-chalk-soft hover:text-chalk-dim'
-                  : 'bg-ink-800 text-chalk-faint hover:text-chalk-soft',
+                  ? 'glass-sm text-chalk-soft hover:text-chalk-dim'
+                  : 'glass-sm text-chalk-faint hover:text-chalk-soft',
             )}
           >
             {Icon && <Icon size={tone === 'room' ? 14 : 12} strokeWidth={2} aria-hidden />}

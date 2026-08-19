@@ -163,7 +163,7 @@ export function LiveView({
         {gasPanel}
 
         <Reveal>
-          <section className="border-ink-650 border-t px-[18px] py-4">
+          <section className="glass mx-[18px] mb-4 rounded-2xl px-[18px] py-4">
             <h2 className="label-xs text-chalk-ghost mb-3 flex items-center gap-1.5">
               <LayoutGrid size={11} strokeWidth={2} aria-hidden />
               All rooms
@@ -180,18 +180,52 @@ export function LiveView({
             />
           </section>
         </Reveal>
+
+        <Reveal>
+          <section className="glass mx-[18px] mb-4 rounded-2xl px-[18px] py-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="label-xs text-chalk-ghost flex items-center gap-1.5">
+                <Grid3x3 size={11} strokeWidth={2} aria-hidden />
+                Last {HEATMAP_DAYS} days
+              </h2>
+              <div className="text-chalk-faint flex items-center gap-1.5 text-[9px] tracking-[0.1em]">
+                <span>LOW</span>
+                <span
+                  className="h-[6px] w-[54px] rounded"
+                  style={{ background: `linear-gradient(90deg,var(--color-ink-650),${accent})` }}
+                />
+                <span>HIGH</span>
+              </div>
+            </div>
+            {/* 24 hourly columns don't fit 18px of side padding on a phone
+                without turning to slivers — scroll the grid itself rather
+                than squeezing every cell unreadable. */}
+            <div className="-mx-[18px] overflow-x-auto px-[18px]">
+              <div className="min-w-[520px]">
+                <Heatmap
+                  rows={heat.rows}
+                  hours={heat.hours}
+                  accent={accent}
+                  metric={metric}
+                  loading={week.loading && !week.data}
+                  error={week.error}
+                />
+              </div>
+            </div>
+          </section>
+        </Reveal>
       </div>
     )
   }
 
   return (
-    <div>
-      <div className="border-ink-650 bg-ink-900 flex items-center justify-between border-b px-[26px] py-3">
+    <div className="flex flex-col gap-4 p-4">
+      <div className="glass flex items-center justify-between rounded-2xl px-[26px] py-3">
         <div className="flex items-center gap-3.5">
           <button
             type="button"
             onClick={onToggleSidebar}
-            className="text-chalk-ghost hover:text-chalk-dim hover:bg-ink-800 rounded-md p-1.5 transition-colors duration-150"
+            className="glass-sm text-chalk-ghost hover:text-chalk-dim rounded-md p-1.5 transition-colors duration-150"
             aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
             title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
           >
@@ -215,12 +249,12 @@ export function LiveView({
         </div>
       </div>
 
-      <div className="grid grid-cols-[1.32fr_1fr]">
+      <div className="grid grid-cols-[1.32fr_1fr] gap-4">
         {heroPanel}
-        <div className="flex flex-col">
+        <div className="flex flex-col gap-4">
           {gasPanel}
           <Reveal>
-            <section className="px-6 py-5">
+            <section className="glass rounded-2xl px-6 py-5">
               <h2 className="label-sm text-chalk-ghost mb-3.5 flex items-center gap-2">
                 <LayoutGrid size={13} strokeWidth={2} aria-hidden />
                 All rooms — side by side
@@ -240,7 +274,7 @@ export function LiveView({
       </div>
 
       <Reveal>
-        <section className="border-ink-650 border-t px-[26px] py-5">
+        <section className="glass rounded-2xl px-[26px] py-5">
           <div className="mb-3.5 flex items-center justify-between">
             <h2 className="label-sm text-chalk-ghost flex items-center gap-2">
               <Grid3x3 size={13} strokeWidth={2} aria-hidden />
@@ -267,7 +301,7 @@ export function LiveView({
       </Reveal>
 
       <Reveal>
-        <section className="border-ink-650 bg-ink-900 border-t px-[26px] py-5">
+        <section className="glass rounded-2xl px-[26px] py-5">
           <div className="mb-3.5 flex items-center gap-3.5">
             <h2 className="label-sm text-chalk-ghost flex items-center gap-2">
               <Bell size={13} strokeWidth={2} aria-hidden />

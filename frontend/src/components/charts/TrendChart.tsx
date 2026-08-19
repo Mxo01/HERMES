@@ -132,6 +132,7 @@ export function TrendChart({
             x={hovered.x}
             containerWidth={hovered.width}
             side="auto"
+            containerRef={ref}
             rows={[
               {
                 label: roomLabel,

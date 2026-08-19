@@ -46,7 +46,7 @@ export function AlarmTable({ alarms, loading, error }: AlarmTableProps) {
   return (
     <div role="table">
       <div
-        className="border-ink-650 text-chalk-ghost grid items-center gap-x-4 border-b pb-[9px] text-[9.5px] tracking-[0.14em]"
+        className="border-white/10 text-chalk-ghost grid items-center gap-x-4 border-b pb-[9px] text-[9.5px] tracking-[0.14em]"
         style={{ gridTemplateColumns: COLUMNS }}
         role="row"
       >
@@ -64,7 +64,7 @@ export function AlarmTable({ alarms, loading, error }: AlarmTableProps) {
           <div
             key={alarm.id}
             role="row"
-            className="border-ink-700 tabular grid items-center gap-x-4 border-b py-[11px] text-[11.5px] tracking-[0.04em]"
+            className="border-white/8 tabular grid items-center gap-x-4 border-b py-[11px] text-[11.5px] tracking-[0.04em]"
             style={{ gridTemplateColumns: COLUMNS }}
           >
             <span
@@ -105,13 +105,16 @@ export function AlarmCards({ alarms, loading, error }: AlarmTableProps) {
   }
 
   return (
+    // No pb-4 here: <main>'s own bottom padding now clears the fixed tab
+    // bar for every mobile view, this one included — adding more here would
+    // just stack on top of that.
     <div className="flex flex-col gap-2.5 px-[18px]">
       {alarms.map((alarm, index) => {
         const SeverityIcon = SEVERITY_ICON[alarm.severity]
         return (
           <div
             key={alarm.id}
-            className="border-ink-650 bg-ink-900 rounded-xl border px-[15px] py-[13px]"
+            className="glass rounded-xl px-[15px] py-[13px]"
             style={{ animation: `rise .45s ${index * 40}ms ease both` }}
           >
             <div className="mb-[7px] flex items-center gap-2.5">

@@ -79,18 +79,13 @@ export function HistoryView({
       <div className="flex flex-col">
         <div className="px-[18px] pt-1.5 pb-3">
           <span className="text-chalk-trace mb-1 block text-[9px] tracking-[0.14em] uppercase">
-            Date range
-          </span>
-          <RangePicker range={range} onChange={onRangeChange} accent={accent} variant="sheet" />
-
-          <span className="text-chalk-trace mt-2.5 mb-1 block text-[9px] tracking-[0.14em] uppercase">
             Room
           </span>
           <div className="flex gap-1.5">
             <Tabs items={roomTabs} value={room} onChange={onRoomChange} layout="fill" label="Room" />
           </div>
 
-          <span className="text-chalk-trace mt-1.5 mb-1 block text-[9px] tracking-[0.14em] uppercase">
+          <span className="text-chalk-trace mt-2 mb-1 block text-[9px] tracking-[0.14em] uppercase">
             Metric
           </span>
           <div className="flex gap-1.5">
@@ -103,10 +98,15 @@ export function HistoryView({
               label="Metric"
             />
           </div>
+
+          <span className="text-chalk-trace mt-2 mb-1 block text-[9px] tracking-[0.14em] uppercase">
+            Date range
+          </span>
+          <RangePicker range={range} onChange={onRangeChange} accent={accent} variant="sheet" />
         </div>
 
         <Reveal>
-          <div className="px-[18px] pt-1 pb-2">
+          <div className="glass mx-[18px] mb-4 rounded-2xl px-[18px] pt-3 pb-2">
             <h2 className="label-xs text-chalk-ghost mb-2 flex items-center gap-1.5">
               <MetricIcon size={11} strokeWidth={2} aria-hidden />
               {roomLabel(room)} · daily range · {spanDays} days
@@ -137,7 +137,7 @@ export function HistoryView({
         </Reveal>
 
         <Reveal>
-          <section className="px-[18px] pt-3 pb-[18px]">
+          <section className="glass mx-[18px] mb-4 rounded-2xl px-[18px] pt-3 pb-[18px]">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="label-xs text-chalk-ghost flex items-center gap-1.5">
                 <CalendarDays size={11} strokeWidth={2} aria-hidden />
@@ -162,13 +162,13 @@ export function HistoryView({
   }
 
   return (
-    <div>
-      <div className="border-ink-650 bg-ink-900 flex items-center justify-between border-b px-[26px] py-3">
+    <div className="flex flex-col gap-4 p-4">
+      <div className="glass flex items-center justify-between rounded-2xl px-[26px] py-3">
         <div className="flex items-center gap-3.5">
           <button
             type="button"
             onClick={onToggleSidebar}
-            className="text-chalk-ghost hover:text-chalk-dim hover:bg-ink-800 rounded-md p-1.5 transition-colors duration-150"
+            className="glass-sm text-chalk-ghost hover:text-chalk-dim rounded-md p-1.5 transition-colors duration-150"
             aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
             title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
           >
@@ -192,13 +192,13 @@ export function HistoryView({
               label="Metric"
             />
           </div>
-          <span className="bg-ink-650 h-5 w-px" />
+          <span className="bg-white/10 h-5 w-px" />
           <RangePicker range={range} onChange={onRangeChange} accent={accent} />
         </div>
       </div>
 
       <Reveal>
-        <section className="px-[26px] pt-[22px] pb-3">
+        <section className="glass rounded-2xl px-[26px] pt-[22px] pb-3">
           <div className="mb-1.5 flex items-center justify-between">
             <h2 className="label-sm text-chalk-ghost flex items-center gap-2">
               <MetricIcon size={13} strokeWidth={2} aria-hidden />
@@ -241,7 +241,7 @@ export function HistoryView({
       </Reveal>
 
       <Reveal>
-        <section className="px-[26px] pt-5 pb-6">
+        <section className="glass rounded-2xl px-[26px] pt-5 pb-6">
           <div className="mb-3.5 flex items-center gap-3.5">
             <h2 className="label-sm text-chalk-ghost flex items-center gap-2">
               <CalendarDays size={13} strokeWidth={2} aria-hidden />
