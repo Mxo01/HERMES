@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   RANGE_PRESETS,
   WEEK_DAY_INITIALS,
@@ -84,12 +85,21 @@ export function RangePicker({ range, onChange, accent, variant = 'popover' }: Ra
   const dayStyle = (day: Date | null) => {
     if (!day) return undefined
     const future = day > today
+    if (future) return { background: 'transparent', color: '#2e2e33', cursor: 'default' }
+
+    // Mid-selection, the previous range is no longer what's in effect — only
+    // the new start day is shown, so it doesn't look like both ranges apply.
+    // The old range comes back on its own once `pendingStart` clears, since
+    // closing without an end day never touched `range` in the first place.
+    if (pendingStart) {
+      if (sameDay(day, pendingStart)) return { background: accent, color: '#080809' }
+      return undefined
+    }
+
     const edge = sameDay(day, range.from) || sameDay(day, range.to)
     const inside = day >= range.from && day <= range.to
-    const pending = pendingStart && sameDay(day, pendingStart)
 
-    if (future) return { background: 'transparent', color: '#2e2e33', cursor: 'default' }
-    if (edge || pending) return { background: accent, color: '#080809' }
+    if (edge) return { background: accent, color: '#080809' }
     if (inside) return { background: withAlpha(accent, 0.16), color: 'var(--color-chalk)' }
     return undefined
   }
@@ -136,10 +146,10 @@ export function RangePicker({ range, onChange, accent, variant = 'popover' }: Ra
       <button
         type="button"
         onClick={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1))}
-        className="text-chalk-muted rounded-[5px] bg-[#151518] px-3 py-1.5 text-[13px] hover:text-chalk-dim"
+        className="text-chalk-muted rounded-[5px] bg-[#151518] px-3 py-1.5 hover:text-chalk-dim"
         aria-label="Previous month"
       >
-        ‹
+        <ChevronLeft size={13} strokeWidth={2} aria-hidden />
       </button>
       {variant === 'sheet' ? (
         <span className="text-chalk-dim text-[11px] tracking-[0.18em]">{months[0].name}</span>
@@ -155,10 +165,10 @@ export function RangePicker({ range, onChange, accent, variant = 'popover' }: Ra
       <button
         type="button"
         onClick={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1))}
-        className="text-chalk-muted rounded-[5px] bg-[#151518] px-3 py-1.5 text-[13px] hover:text-chalk-dim"
+        className="text-chalk-muted rounded-[5px] bg-[#151518] px-3 py-1.5 hover:text-chalk-dim"
         aria-label="Next month"
       >
-        ›
+        <ChevronRight size={13} strokeWidth={2} aria-hidden />
       </button>
     </div>
   )
@@ -175,12 +185,14 @@ export function RangePicker({ range, onChange, accent, variant = 'popover' }: Ra
       )}
       style={{ letterSpacing: '0.14em' }}
     >
-      <span
-        className="block h-[11px] w-[11px] rounded-sm border-[1.5px] border-t-[3px] border-[#7c7c83]"
+      <Calendar size={13} strokeWidth={2} className="text-chalk-ghost shrink-0" aria-hidden />
+      {label}
+      <ChevronDown
+        size={12}
+        strokeWidth={2}
+        className={cn('text-chalk-faint shrink-0', variant === 'sheet' && 'ml-auto')}
         aria-hidden
       />
-      {label}
-      <span className={cn('text-chalk-faint text-[9px]', variant === 'sheet' && 'ml-auto')}>▼</span>
     </button>
   )
 

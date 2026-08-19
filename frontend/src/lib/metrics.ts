@@ -1,3 +1,16 @@
+import {
+  BedDouble,
+  ChefHat,
+  CircleDot,
+  CloudSun,
+  Droplet,
+  Flame,
+  MapPin,
+  Thermometer,
+  TriangleAlert,
+  Wind,
+  type LucideIcon,
+} from 'lucide-react'
 import type { EnvMetric, Metric, MetricSpec, Room, Severity } from '@/lib/types'
 
 /**
@@ -33,6 +46,14 @@ export const METRIC_DECIMALS: Record<Metric, number> = {
   aq: 0,
 }
 
+/** One glyph per metric, so a tab or column header reads before its label does. */
+export const METRIC_ICONS: Record<Metric, LucideIcon> = {
+  gas: Flame,
+  temperature: Thermometer,
+  humidity: Droplet,
+  aq: Wind,
+}
+
 /**
  * Fallback full-scale range for the comparison bars, used only until
  * `/api/meta` arrives. The server is the authority — see {@link metricSpan}.
@@ -62,6 +83,17 @@ export const ROOM_LABELS: Record<Room, string> = {
   outside: 'Outside',
 }
 
+/** Known rooms get a recognisable glyph; anything else falls back to a pin. */
+const ROOM_ICONS: Partial<Record<Room, LucideIcon>> = {
+  kitchen: ChefHat,
+  bedroom: BedDouble,
+  outside: CloudSun,
+}
+
+export function roomIcon(room: Room): LucideIcon {
+  return ROOM_ICONS[room] ?? MapPin
+}
+
 export const SENSOR_LABELS: Record<string, string> = {
   mq2: 'MQ-2',
   mq135: 'MQ-135',
@@ -85,10 +117,10 @@ export const SEVERITY_COLOR: Record<Severity, string> = {
   low: 'var(--color-signal-ok)',
 }
 
-export const SEVERITY_MARK: Record<Severity, string> = {
-  high: '▲',
-  medium: '▲',
-  low: '●',
+export const SEVERITY_ICON: Record<Severity, LucideIcon> = {
+  high: TriangleAlert,
+  medium: TriangleAlert,
+  low: CircleDot,
 }
 
 export const ALARM_KIND_LABELS: Record<string, string> = {

@@ -1,4 +1,6 @@
+import { Flame } from 'lucide-react'
 import { Sparkline } from '@/components/charts/Sparkline'
+import { AnimatedValue } from '@/components/shared/AnimatedValue'
 import { formatStamp } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { Alarm } from '@/lib/types'
@@ -12,6 +14,10 @@ interface GasPanelProps {
   lastSpike?: Alarm
   compact?: boolean
   variant?: 'panel' | 'card'
+  /** Distinguishes "still fetching" from "sensor has nothing to report". */
+  loading?: boolean
+  /** A failed request — takes priority over the loading/no-data label. */
+  error?: Error
 }
 
 /**
@@ -26,10 +32,26 @@ export function GasPanel({
   lastSpike,
   compact = false,
   variant = 'panel',
+  loading = false,
+  error,
 }: GasPanelProps) {
   const elevated = value !== undefined && value >= threshold * 0.6
-  const color = elevated ? 'var(--color-signal-alert)' : 'var(--color-signal-ok)'
-  const status = value === undefined ? 'NO DATA' : elevated ? 'ELEVATED' : 'NORMAL'
+  const color = error
+    ? 'var(--color-signal-alert)'
+    : loading && value === undefined
+      ? 'var(--color-chalk-faint)'
+      : elevated
+        ? 'var(--color-signal-alert)'
+        : 'var(--color-signal-ok)'
+  const status = error
+    ? 'ERROR'
+    : value === undefined
+      ? loading
+        ? 'LOADING'
+        : 'NO DATA'
+      : elevated
+        ? 'ELEVATED'
+        : 'NORMAL'
   const fill = value === undefined ? '0%' : `${Math.min(100, (value / threshold) * 100).toFixed(1)}%`
 
   return (
@@ -48,6 +70,7 @@ export function GasPanel({
           style={{ background: color }}
           aria-hidden
         />
+        <Flame size={compact ? 13 : 14} strokeWidth={2} className="text-chalk-ghost shrink-0" aria-hidden />
         <span className={cn('text-chalk-muted', compact ? 'label-xs' : 'label-sm')}>
           {compact ? 'Gas & smoke · MQ-2' : 'Gas & smoke — MQ-2 · Kitchen node A'}
         </span>
@@ -70,7 +93,10 @@ export function GasPanel({
               color,
             }}
           >
-            {value === undefined ? '—' : String(Math.round(value)).padStart(3, '0')}
+            <AnimatedValue
+              value={value}
+              format={(v) => (v === undefined ? '—' : String(Math.round(v)).padStart(3, '0'))}
+            />
           </span>
           <span
             className="text-chalk-ghost"
@@ -89,6 +115,9 @@ export function GasPanel({
             labels={labels}
             metric="gas"
             seriesLabel="Gas"
+            loading={loading}
+            error={error}
+            showStatus={false}
             className={cn('block min-w-0 flex-1', compact ? 'h-10' : 'h-[46px]')}
           />
         )}
@@ -107,12 +136,19 @@ export function GasPanel({
             <span>0 CLEAN</span>
             <span>ALARM THRESHOLD {threshold}</span>
           </div>
-          <div className="text-chalk-faint mt-2.5 text-[10.5px] tracking-[0.06em] uppercase">
-            {lastSpike
-              ? `Last spike ${lastSpike.peak ?? '—'} · ${formatStamp(lastSpike.startedAt)}${
-                  lastSpike.notified ? ' · telegram alert sent' : ''
-                }`
-              : 'No gas alarm on record'}
+          <div
+            className={cn(
+              'mt-2.5 text-[10.5px] tracking-[0.06em] uppercase',
+              error ? 'text-signal-alert' : 'text-chalk-faint',
+            )}
+          >
+            {error
+              ? "Couldn't refresh the gas reading"
+              : lastSpike
+                ? `Last spike ${lastSpike.peak ?? '—'} · ${formatStamp(lastSpike.startedAt)}${
+                    lastSpike.notified ? ' · telegram alert sent' : ''
+                  }`
+                : 'No gas alarm on record'}
           </div>
         </>
       )}

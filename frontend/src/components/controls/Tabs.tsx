@@ -1,3 +1,4 @@
+import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface TabItem<T extends string> {
@@ -5,6 +6,8 @@ export interface TabItem<T extends string> {
   label: string
   /** When set, the selected tab uses this as its background. */
   accent?: string
+  /** Shown before the label — lets a tab read at a glance, label or not. */
+  icon?: LucideIcon
 }
 
 interface TabsProps<T extends string> {
@@ -36,6 +39,7 @@ export function Tabs<T extends string>({
     >
       {items.map((item) => {
         const selected = item.id === value
+        const Icon = item.icon
         return (
           <button
             key={item.id}
@@ -45,7 +49,8 @@ export function Tabs<T extends string>({
             onClick={() => onChange(item.id)}
             style={selected && item.accent ? { background: item.accent, color: '#080809' } : undefined}
             className={cn(
-              'tabular whitespace-nowrap transition-colors duration-200',
+              'tabular flex items-center justify-center whitespace-nowrap transition-colors duration-200',
+              Icon && 'gap-[7px]',
               fill ? 'flex-1 rounded-lg' : 'rounded-md',
               tone === 'room'
                 ? fill
@@ -63,6 +68,7 @@ export function Tabs<T extends string>({
                   : 'bg-ink-800 text-chalk-faint hover:text-chalk-soft',
             )}
           >
+            {Icon && <Icon size={tone === 'room' ? 14 : 12} strokeWidth={2} aria-hidden />}
             {item.label.toUpperCase()}
           </button>
         )

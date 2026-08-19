@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { ChartStatus } from '@/components/charts/ChartStatus'
 import { ChartTooltip } from '@/components/charts/ChartTooltip'
 import { useChartPointer } from '@/hooks/useChartPointer'
 import { useElementSize } from '@/hooks/useElementSize'
@@ -18,6 +19,12 @@ interface SparklineProps {
   labels?: string[]
   metric?: Metric
   seriesLabel?: string
+  /** Distinguishes "still fetching" from "nothing to draw". */
+  loading?: boolean
+  /** A failed request — takes priority over the empty/loading message. */
+  error?: Error
+  /** False when a sibling element already states the same loading/error/no-data fact. */
+  showStatus?: boolean
 }
 
 /** A bare trend line: no axes, no grid, just the shape of the last few hours. */
@@ -30,6 +37,9 @@ export function Sparkline({
   labels,
   metric,
   seriesLabel = 'Value',
+  loading = false,
+  error,
+  showStatus = true,
 }: SparklineProps) {
   const [ref, size] = useElementSize<HTMLDivElement>()
 
@@ -62,6 +72,16 @@ export function Sparkline({
     <div className={`relative ${className ?? ''}`} ref={ref}>
       {interactive && (
         <div className="absolute inset-0 z-[1]" {...pointer.handlers} ref={pointer.ref} />
+      )}
+
+      {!chart && showStatus && (
+        <ChartStatus
+          loading={loading}
+          error={error}
+          emptyLabel="No data"
+          size="compact"
+          className="text-[8.5px] tracking-[0.1em]"
+        />
       )}
 
       {chart && (

@@ -1,4 +1,5 @@
 import { TrendChart } from '@/components/charts/TrendChart'
+import { AnimatedValue } from '@/components/shared/AnimatedValue'
 import { formatDelta, formatMetric } from '@/lib/format'
 import { METRIC_TITLES, METRIC_UNITS, metricSpan, roomLabel } from '@/lib/metrics'
 import { cn } from '@/lib/utils'
@@ -19,6 +20,8 @@ interface HeroMetricProps {
   /** Metric catalog from /api/meta; the delta bar is scaled against it. */
   metricSpecs?: Record<Metric, MetricSpec>
   loading?: boolean
+  /** A failed request behind the trend chart and the min/max readout. */
+  error?: Error
   compact?: boolean
 }
 
@@ -39,6 +42,7 @@ export function HeroMetric({
   labels,
   metricSpecs,
   loading = false,
+  error,
   compact = false,
 }: HeroMetricProps) {
   const delta = value !== undefined && outside !== undefined ? value - outside : undefined
@@ -49,9 +53,13 @@ export function HeroMetric({
   const deltaWidth =
     delta === undefined ? '0%' : `${Math.min(100, (Math.abs(delta) / (spanMax - spanMin)) * 340).toFixed(1)}%`
 
+  // Whichever side is actually missing — saying "no outdoor data" while the
+  // gap is really the room's own reading would point at the wrong sensor.
   const deltaWord =
     delta === undefined
-      ? 'NO OUTDOOR DATA'
+      ? value === undefined
+        ? 'NO INDOOR DATA'
+        : 'NO OUTDOOR DATA'
       : metric === 'temperature'
         ? higher
           ? 'WARMER INSIDE'
@@ -86,7 +94,7 @@ export function HeroMetric({
               marginRight: '0.05em',
             }}
           >
-            {formatMetric(value, metric, false)}
+            <AnimatedValue value={value} format={(v) => formatMetric(v, metric, false)} />
           </span>
           <span
             className="text-chalk-ghost"
@@ -108,7 +116,7 @@ export function HeroMetric({
               className="tabular font-medium"
               style={{ fontSize: compact ? 26 : 34, letterSpacing: '-0.03em', color: deltaColor }}
             >
-              {formatDelta(delta, metric)}
+              <AnimatedValue value={delta} format={(v) => formatDelta(v, metric)} />
             </span>
             {!compact && (
               <span
@@ -120,7 +128,7 @@ export function HeroMetric({
             )}
           </div>
           {compact ? (
-            <div className="mt-0.5" style={{ fontSize: 9, letterSpacing: '0.1em', color: deltaColor }}>
+            <div className="mt-0.5 text-right" style={{ fontSize: 9, letterSpacing: '0.1em', color: deltaColor }}>
               {deltaWord}
             </div>
           ) : (
@@ -138,11 +146,20 @@ export function HeroMetric({
         className="text-chalk-soft tabular mt-3 flex"
         style={{ gap: compact ? 16 : 24, fontSize: compact ? 10.5 : 11.5, letterSpacing: '0.06em' }}
       >
-        <span>MIN {formatMetric(min, metric)}</span>
-        <span>MAX {formatMetric(max, metric)}</span>
-        <span className="text-chalk-faint">
-          {compact ? 'OUT' : 'OUTSIDE'} {formatMetric(outside, metric)}
+        <span>
+          MIN <AnimatedValue value={min} format={(v) => formatMetric(v, metric)} />
         </span>
+        <span>
+          MAX <AnimatedValue value={max} format={(v) => formatMetric(v, metric)} />
+        </span>
+        <span className="text-chalk-faint">
+          {compact ? 'OUT' : 'OUTSIDE'} <AnimatedValue value={outside} format={(v) => formatMetric(v, metric)} />
+        </span>
+        {error && (
+          <span className="text-signal-alert" title={error.message}>
+            couldn't refresh
+          </span>
+        )}
       </div>
 
       <TrendChart
@@ -153,6 +170,7 @@ export function HeroMetric({
         accent={accent}
         roomLabel={roomLabel(room)}
         loading={loading}
+        error={error}
         animationKey={`${room}-${metric}`}
         className={cn('mt-3 block w-full', compact ? 'h-[120px]' : 'h-[150px]')}
       />

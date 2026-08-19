@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Page } from '@/lib/history'
 
@@ -10,7 +11,12 @@ interface PagerProps {
 const BUTTON =
   'border-ink-650 bg-ink-800 tabular rounded-md border text-[11px] tracking-[0.12em] transition-colors duration-150'
 
-/** Shared pagination for the day-by-day tables. */
+/**
+ * Shared pagination for the day-by-day tables. Rows read newest-first, so
+ * older sits to the left (further back, like scrolling a timeline toward the
+ * past) and newer to the right (toward the present) — the reverse of the
+ * page index itself, which counts up as you go back in time.
+ */
 export function Pager({ page, onChange, variant = 'inline' }: PagerProps) {
   const canPrev = page.index > 0
   const canNext = page.index < page.count - 1
@@ -20,19 +26,29 @@ export function Pager({ page, onChange, variant = 'inline' }: PagerProps) {
       <div className="mt-3 grid grid-cols-2 gap-1.5">
         <button
           type="button"
-          disabled={!canPrev}
-          onClick={() => onChange(page.index - 1)}
-          className={cn(BUTTON, 'px-3.5 py-3', canPrev ? 'text-chalk-dim' : 'cursor-default text-[#3a3a3f]')}
+          disabled={!canNext}
+          onClick={() => onChange(page.index + 1)}
+          className={cn(
+            BUTTON,
+            'flex items-center justify-center gap-1 px-3.5 py-3',
+            canNext ? 'text-chalk-dim' : 'cursor-default text-[#3a3a3f]',
+          )}
         >
-          ‹ NEWER
+          <ChevronLeft size={13} strokeWidth={2} aria-hidden />
+          OLDER
         </button>
         <button
           type="button"
-          disabled={!canNext}
-          onClick={() => onChange(page.index + 1)}
-          className={cn(BUTTON, 'px-3.5 py-3', canNext ? 'text-chalk-dim' : 'cursor-default text-[#3a3a3f]')}
+          disabled={!canPrev}
+          onClick={() => onChange(page.index - 1)}
+          className={cn(
+            BUTTON,
+            'flex items-center justify-center gap-1 px-3.5 py-3',
+            canPrev ? 'text-chalk-dim' : 'cursor-default text-[#3a3a3f]',
+          )}
         >
-          OLDER ›
+          NEWER
+          <ChevronRight size={13} strokeWidth={2} aria-hidden />
         </button>
       </div>
     )
@@ -45,24 +61,32 @@ export function Pager({ page, onChange, variant = 'inline' }: PagerProps) {
       </span>
       <button
         type="button"
-        disabled={!canPrev}
-        onClick={() => onChange(page.index - 1)}
-        className={cn(BUTTON, 'px-3.5 py-1.5', canPrev ? 'text-chalk-dim' : 'cursor-default text-[#3a3a3f]')}
-        aria-label="Newer page"
+        disabled={!canNext}
+        onClick={() => onChange(page.index + 1)}
+        className={cn(
+          BUTTON,
+          'flex items-center justify-center px-3.5 py-1.5',
+          canNext ? 'text-chalk-dim' : 'cursor-default text-[#3a3a3f]',
+        )}
+        aria-label="Older page"
       >
-        ‹
+        <ChevronLeft size={13} strokeWidth={2} aria-hidden />
       </button>
       <span className="text-chalk-muted tabular min-w-[74px] text-center text-[10px] tracking-[0.12em]">
         PAGE {page.index + 1} / {page.count}
       </span>
       <button
         type="button"
-        disabled={!canNext}
-        onClick={() => onChange(page.index + 1)}
-        className={cn(BUTTON, 'px-3.5 py-1.5', canNext ? 'text-chalk-dim' : 'cursor-default text-[#3a3a3f]')}
-        aria-label="Older page"
+        disabled={!canPrev}
+        onClick={() => onChange(page.index - 1)}
+        className={cn(
+          BUTTON,
+          'flex items-center justify-center px-3.5 py-1.5',
+          canPrev ? 'text-chalk-dim' : 'cursor-default text-[#3a3a3f]',
+        )}
+        aria-label="Newer page"
       >
-        ›
+        <ChevronRight size={13} strokeWidth={2} aria-hidden />
       </button>
     </div>
   )

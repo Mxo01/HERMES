@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react'
 import { formatDelta, formatMetric } from '@/lib/format'
 import type { DayRow } from '@/lib/history'
 import type { Metric } from '@/lib/types'
@@ -40,6 +41,16 @@ interface DayTableProps {
   accent: string
   /** Values within this fraction of the range read as "no real change". */
   quietDelta: number
+  /** True until the first fetch for this range resolves. */
+  loading?: boolean
+  /** A failed request — takes priority over the loading/empty message. */
+  error?: Error
+}
+
+function emptyMessage(loading: boolean | undefined, error: Error | undefined): string {
+  if (error) return "Couldn't load. Check the connection and try again."
+  if (loading) return 'Loading…'
+  return 'No readings in this range.'
 }
 
 function deltaColor(delta: number | null, quietDelta: number, accent: string): string {
@@ -48,9 +59,13 @@ function deltaColor(delta: number | null, quietDelta: number, accent: string): s
   return delta > 0 ? accent : 'var(--color-signal-cool)'
 }
 
-export function DayTable({ rows, metric, accent, quietDelta }: DayTableProps) {
+export function DayTable({ rows, metric, accent, quietDelta, loading, error }: DayTableProps) {
   if (rows.length === 0) {
-    return <p className="text-chalk-faint py-6 text-[11.5px]">No readings in this range.</p>
+    return (
+      <p className={cn('py-6 text-[11.5px]', error ? 'text-signal-alert' : 'text-chalk-faint')}>
+        {emptyMessage(loading, error)}
+      </p>
+    )
   }
 
   return (
@@ -87,8 +102,20 @@ export function DayTable({ rows, metric, accent, quietDelta }: DayTableProps) {
             {row.delta === null ? '—' : formatDelta(row.delta, metric)}
           </span>
           <RangeBar row={row} accent={accent} />
-          <span className={row.alarms ? 'text-signal-alert' : 'text-chalk-trace'}>
-            {row.alarms ? `▲ ${row.alarms}` : '—'}
+          <span
+            className={cn(
+              'flex items-center gap-1',
+              row.alarms ? 'text-signal-alert' : 'text-chalk-trace',
+            )}
+          >
+            {row.alarms ? (
+              <>
+                <TriangleAlert size={11} strokeWidth={2} aria-hidden />
+                {row.alarms}
+              </>
+            ) : (
+              '—'
+            )}
           </span>
           <span
             className={cn(
@@ -105,9 +132,13 @@ export function DayTable({ rows, metric, accent, quietDelta }: DayTableProps) {
 }
 
 /** The phone variant: date, average, range bar, alarm count. */
-export function DayRows({ rows, metric, accent }: Omit<DayTableProps, 'quietDelta'>) {
+export function DayRows({ rows, metric, accent, loading, error }: Omit<DayTableProps, 'quietDelta'>) {
   if (rows.length === 0) {
-    return <p className="text-chalk-faint py-4 text-[11px]">No readings in this range.</p>
+    return (
+      <p className={cn('py-4 text-[11px]', error ? 'text-signal-alert' : 'text-chalk-faint')}>
+        {emptyMessage(loading, error)}
+      </p>
+    )
   }
 
   return (
@@ -122,9 +153,19 @@ export function DayRows({ rows, metric, accent }: Omit<DayTableProps, 'quietDelt
           <span className="text-chalk">{formatMetric(row.avg, metric)}</span>
           <RangeBar row={row} accent={accent} height={7} />
           <span
-            className={cn('text-right text-[10px]', row.alarms ? 'text-signal-alert' : 'text-chalk-trace')}
+            className={cn(
+              'flex items-center justify-end gap-1 text-[10px]',
+              row.alarms ? 'text-signal-alert' : 'text-chalk-trace',
+            )}
           >
-            {row.alarms ? `▲ ${row.alarms}` : '—'}
+            {row.alarms ? (
+              <>
+                <TriangleAlert size={10} strokeWidth={2} aria-hidden />
+                {row.alarms}
+              </>
+            ) : (
+              '—'
+            )}
           </span>
         </div>
       ))}

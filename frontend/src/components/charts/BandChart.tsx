@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { ChartCandlestick } from 'lucide-react'
+import { ChartStatus } from '@/components/charts/ChartStatus'
 import { ChartTooltip } from '@/components/charts/ChartTooltip'
 import { useChartPointer } from '@/hooks/useChartPointer'
 import { useElementSize } from '@/hooks/useElementSize'
@@ -17,6 +19,8 @@ interface BandChartProps {
   height?: number
   /** Distinguishes "still fetching" from "nothing to draw". */
   loading?: boolean
+  /** A failed request — takes priority over the empty/loading message. */
+  error?: Error
   animationKey?: string
 }
 
@@ -31,6 +35,7 @@ export function BandChart({
   compact = false,
   height = 220,
   loading = false,
+  error,
   animationKey,
 }: BandChartProps) {
   const [ref, size] = useElementSize<HTMLDivElement>()
@@ -86,10 +91,13 @@ export function BandChart({
       {/* The pointer surface sits on top so hit-testing ignores the paths. */}
       <div className="absolute inset-0 z-[1]" {...pointer.handlers} ref={pointer.ref} />
 
-      {!chart && (
-        <div className="label-xs text-chalk-trace flex h-full items-center justify-center">
-          {points.length < 2 && (loading ? 'READING…' : 'NOT ENOUGH DATA IN THIS RANGE')}
-        </div>
+      {!chart && points.length < 2 && (
+        <ChartStatus
+          loading={loading}
+          error={error}
+          emptyLabel="Not enough data in this range"
+          emptyIcon={ChartCandlestick}
+        />
       )}
 
       {chart && (
