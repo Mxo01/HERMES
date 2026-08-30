@@ -1,0 +1,51 @@
+# Configurazione gitleaks per HERMES.
+# Estende il ruleset di default e aggiunge le regole specifiche del progetto.
+# NB: gitleaks usa RE2 (Go) — niente lookahead/lookbehind nelle regex.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "hermes-device-token"
+description = "DEVICE_TOKEN del firmware compilato con un valore reale invece di lasciarlo vuoto"
+# Il file committato deve restare `DEVICE_TOKEN = ""`: il token vero si mette
+# solo nella copia locale prima del flash.
+regex = '''DEVICE_TOKEN[ \t]*=[ \t]*"([^"]+)"'''
+secretGroup = 1
+path = '''firmware/.*\.(cpp|h|ino)$'''
+tags = ["hermes", "firmware", "secret"]
+
+[[rules]]
+id = "hermes-firmware-wifi-credentials"
+description = "Credenziali Wi-Fi hardcoded nel firmware (le reti si configurano dal portale WiFiManager)"
+regex = '''(?i)(?:wifi|wlan|sta)[_-]?(?:ssid|pass|password|psk)[ \t]*=[ \t]*"([^"]+)"'''
+secretGroup = 1
+path = '''firmware/.*\.(cpp|h|ino)$'''
+tags = ["hermes", "firmware", "wifi"]
+
+[[rules]]
+id = "hermes-env-hardcoded-secret"
+description = "Variabile d'ambiente HERMES con un valore reale al posto del placeholder"
+# Case-sensitive di proposito: `secret_key=source.get(...)` in config.py e'
+# un keyword argument Python, non una credenziale.
+# `[ \t]` invece di `\s` intorno all'`=`: con `\s` il valore poteva arrivare
+# dalla riga dopo, e `TELEGRAM_BOT_TOKEN=` vuoto matchava la riga successiva.
+# `[^\s#$]` come primo char del valore esclude commenti, valori vuoti e le
+# sostituzioni tipo $(python3 -c ...) di deploy/install.sh.
+regex = '''(?m)^[ \t]*(?:TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID|INGEST_TOKEN|SECRET_KEY|GITHUB_TOKEN)[ \t]*=[ \t]*([^\s#$][^\s]{7,})'''
+secretGroup = 1
+tags = ["hermes", "env", "secret"]
+
+[allowlist]
+description = "Falsi positivi noti"
+
+paths = [
+  # Template senza valori reali: ogni riga e' commentata o vuota
+  '''backend/\.env\.example$''',
+  # Fixture di test con token finti (es. 's3cret')
+  '''backend/tests/.*\.py$''',
+  # Hash di integrita' di npm, non credenziali
+  '''frontend/package-lock\.json$''',
+  # La configurazione delle regole cita per forza i nomi delle variabili
+  '''\.gitleaks\.toml$''',
+]

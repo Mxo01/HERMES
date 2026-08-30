@@ -38,7 +38,7 @@ help:
 	@echo "  make demo       Same, against 21 days of generated readings"
 	@echo "  make serve      Run the production build the way the Pi does"
 	@echo
-	@echo "  make setup      Install dependencies (implied by the targets above)"
+	@echo "  make setup      Install dependencies and the git hooks (implied above)"
 	@echo "  make check      Tests, type checks, lint and format check, both sides"
 	@echo "  make format     Reformat the dashboard with Prettier"
 	@echo "  make build      Compile the dashboard into frontend/dist"
@@ -50,7 +50,7 @@ help:
 
 # ------------------------------------------------------------------- setup
 
-setup: $(VENV_STAMP) $(NODE_STAMP)
+setup: hooks $(VENV_STAMP) $(NODE_STAMP)
 
 $(VENV_STAMP): $(BACKEND)/requirements-dev.txt
 	@echo "==> Creating the Python environment"
@@ -63,6 +63,15 @@ $(NODE_STAMP): $(FRONTEND)/package-lock.json
 	@echo "==> Installing dashboard dependencies"
 	@cd $(FRONTEND) && npm install --silent
 	@touch $@
+
+# ------------------------------------------------------------------- hooks
+
+# Blocks a commit that stages a secret. `core.hooksPath` is per-clone config,
+# never cloned with the repository, so every checkout has to opt in once.
+hooks:
+	@git config core.hooksPath .githooks
+	@command -v gitleaks >/dev/null 2>&1 || \
+		echo "==> gitleaks is not installed: the pre-commit scan will be skipped (brew install gitleaks)"
 
 # --------------------------------------------------------------- run it all
 

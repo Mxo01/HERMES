@@ -447,6 +447,7 @@ make demo
 | `make build` | Compile the dashboard into `frontend/dist` |
 | `make firmware` | Compile the firmware for all three node types |
 | `make seed` | Regenerate the demo database |
+| `make hooks` | Install the pre-commit secret scan (implied by the targets above) |
 | `make clean` | Remove build output and caches |
 
 Ports are configurable when something else already holds them — the Makefile
@@ -498,3 +499,32 @@ Everything is environment variables, documented with defaults in
 | `DOWNSAMPLING_KEEP_DAYS` | `7` | How long raw samples are kept |
 | `TELEGRAM_BOT_TOKEN` | *(unset)* | Unset disables notifications entirely |
 | `WEATHER_ENABLED` | `true` | `false` turns outdoor data off |
+
+---
+
+## 9. Secrets
+
+Nothing secret is ever committed. The values that exist — `SECRET_KEY` and
+`INGEST_TOKEN`, generated on the Pi by [deploy/install.sh](deploy/install.sh),
+and the Telegram bot token — live in `backend/.env` locally and in
+`/opt/hermes/shared/hermes.env` in production, both outside git. The firmware's
+`DEVICE_TOKEN` stays `""` in the committed source: the real value goes into your
+working copy just before flashing, and never comes back.
+
+Two checks keep it that way, both running [gitleaks](https://github.com/gitleaks/gitleaks)
+against [.gitleaks.toml](.gitleaks.toml) — the default ruleset plus rules for
+`DEVICE_TOKEN`, hardcoded Wi-Fi credentials and filled-in HERMES environment
+variables:
+
+- **Before the commit.** `make setup` points `core.hooksPath` at
+  [.githooks](.githooks), whose `pre-commit` scans the staged diff and refuses
+  the commit on a hit. `core.hooksPath` is per-clone configuration and is never
+  cloned with the repository, so a fresh checkout has to run `make setup` (or
+  `make hooks`) once. Install the scanner with `brew install gitleaks`; without
+  it the hook warns and lets the commit through.
+- **In CI.** The `Secret scan` job walks *every* commit on every branch, not just
+  the tip — a secret that was committed and later removed is still readable with
+  `git log`. Nothing releases unless it passes.
+
+A false positive belongs in the `[allowlist]` of `.gitleaks.toml`, not behind
+`--no-verify`.

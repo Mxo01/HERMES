@@ -1,0 +1,42 @@
+#!/bin/sh
+# Scan dei secret prima di ogni commit.
+#
+# Attivato da `make hooks` (che `make setup` chiama a sua volta): core.hooksPath
+# e' configurazione per-clone, quindi ogni clone deve abilitarlo una volta.
+
+echo "--- Secret scanning ---"
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "ATTENZIONE: gitleaks non installato, scan dei secret SALTATO."
+  echo "Installalo con:  brew install gitleaks"
+  exit 0
+fi
+
+# "|| STATUS=$?" evita che l'hook esca prima di stampare il messaggio.
+STATUS=0
+# gitleaks >= 8.19 usa "git --staged"; le versioni precedenti "protect --staged"
+if gitleaks git --help >/dev/null 2>&1; then
+  gitleaks git --staged --redact --no-banner --config .gitleaks.toml || STATUS=$?
+else
+  gitleaks protect --staged --redact --no-banner --config .gitleaks.toml || STATUS=$?
+fi
+
+if [ "$STATUS" -ne 0 ]; then
+  echo ""
+  echo "=============================================================="
+  echo " COMMIT BLOCCATO: possibile secret nei file staged."
+  echo ""
+  echo " Sposta il valore in backend/.env (gitignored) o in una env var,"
+  echo " e lascia il placeholder nel file committato."
+  echo " Vedi backend/.env.example per le chiavi."
+  echo ""
+  echo " Nel firmware, DEVICE_TOKEN va lasciato \"\" nel file committato:"
+  echo " il token vero si mette solo nella copia locale prima del flash."
+  echo ""
+  echo " Falso positivo? Aggiungilo alla allowlist in .gitleaks.toml."
+  echo " NON usare --no-verify per aggirare questo controllo."
+  echo "=============================================================="
+  exit 1
+fi
+
+exit 0
