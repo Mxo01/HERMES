@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { socket, type ServerEvent } from '@/lib/socket'
+import { socket, type ServerEvent } from '@/shared/services/socket'
 
 /** Opens the shared connection for as long as any component needs it. */
 export function useSocketConnection(): boolean {

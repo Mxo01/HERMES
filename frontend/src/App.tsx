@@ -1,21 +1,26 @@
-import { useMemo, useState } from 'react'
-import { Sidebar } from '@/components/shell/Sidebar'
-import { BottomTabs } from '@/components/shell/BottomTabs'
-import { ErrorBanner } from '@/components/shell/ErrorBanner'
-import { AlarmsView } from '@/features/alarms/AlarmsView'
-import { HistoryView } from '@/features/history/HistoryView'
-import { LiveView } from '@/features/live/LiveView'
-import { useAlarms, useLiveStatus, useMeta, useNodes } from '@/hooks/useDashboardData'
+import type { TabItem } from '@/shared/models/controls/Tabs.model'
+import { Body } from '@/shared/components/shell/Body'
+import { LayoutDesktop } from '@/shared/components/shell/LayoutDesktop'
+import { LayoutMobile } from '@/shared/components/shell/LayoutMobile'
+import { useAlarms, useLiveStatus, useMeta, useNodes } from '@/shared/services/dashboard.service'
 import { useClock, useMediaQuery } from '@/hooks/useEnvironment'
 import { useRoute } from '@/hooks/useRoute'
 import { useSocketConnection } from '@/hooks/useSocketEvent'
-import { presetRange, type DateRange } from '@/lib/dates'
-import { formatClock } from '@/lib/format'
-import { ACCENT, ENV_METRICS, METRIC_ICONS, METRIC_TITLES, roomIcon, roomLabel } from '@/lib/metrics'
-import { cn } from '@/lib/utils'
-import type { Alarm, EnvMetric, Room } from '@/lib/types'
-import type { View } from '@/lib/view'
-import type { TabItem } from '@/components/controls/Tabs'
+import { presetRange } from '@/shared/utils/dates'
+import type { DateRange } from '@/shared/models/dates.model'
+import {
+  ACCENT,
+  BEDROOM,
+  ENV_METRICS,
+  KITCHEN,
+  METRIC_ICONS,
+  METRIC_TITLES,
+  roomIcon,
+  roomLabel,
+} from '@/shared/utils/metrics'
+import type { Alarm, EnvMetric, Room } from '@/shared/models/types'
+import type { View } from '@/shared/const/view'
+import { useMemo, useState } from 'react'
 
 const ALARM_WINDOW_DAYS = 14
 const SIDEBAR_KEY = 'hermes.sidebarCollapsed'
@@ -23,11 +28,18 @@ const SIDEBAR_KEY = 'hermes.sidebarCollapsed'
 /** Stable empty fallback, so the memo below does not re-run on every render. */
 const NO_ALARMS: Alarm[] = []
 
+/**
+ * Owns all dashboard state and data fetching, derives what each layout and
+ * view need from it, and picks a shell: `LayoutMobile`/`LayoutDesktop` render
+ * the chrome, `Body` picks the active view inside it. Below 1024px switches
+ * to the phone shell rather than a CSS-only responsive reflow — check both
+ * layouts when changing anything here.
+ */
 export default function App() {
   const isDesktop = useMediaQuery('(min-width: 1024px)')
 
   const [view, setView] = useRoute()
-  const [room, setRoom] = useState<Room>('kitchen')
+  const [room, setRoom] = useState<Room>(KITCHEN)
   const [metric, setMetric] = useState<EnvMetric>('temperature')
   const [range, setRange] = useState<DateRange>(() => presetRange(14))
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -66,7 +78,7 @@ export default function App() {
 
   /** Rooms you can select: the physical ones, not the synthetic outdoor one. */
   const roomTabs: TabItem<Room>[] = useMemo(() => {
-    const rooms = meta.data?.sensorRooms ?? ['kitchen', 'bedroom']
+    const rooms = meta.data?.sensorRooms ?? [KITCHEN, BEDROOM]
     return rooms.map((id) => ({ id, label: roomLabel(id), icon: roomIcon(id) }))
   }, [meta.data])
 
@@ -91,105 +103,35 @@ export default function App() {
         )}m`
       : undefined
 
-  const shared = {
-    room,
-    metric,
-    onRoomChange: setRoom,
-    onMetricChange: setMetric,
-    roomTabs,
-    metricTabs,
-    meta: meta.data,
-    accent,
-    compact: !isDesktop,
-    sidebarCollapsed,
-    onToggleSidebar,
-  }
-
   const body = (
-    <>
-      {effectiveView === 'live' && (
-        <LiveView
-          {...shared}
-          status={status}
-          statusLoading={statusLoading}
-          statusError={statusError}
-          alarms={alarms}
-          alarmsLoading={alarmLog.loading}
-          alarmsError={alarmLog.error}
-        />
-      )}
-      {effectiveView === 'history' && (
-        <HistoryView {...shared} range={range} onRangeChange={setRange} />
-      )}
-      {effectiveView === 'alarms' && (
-        <AlarmsView
-          alarms={alarms}
-          alarmsLoading={alarmLog.loading}
-          alarmsError={alarmLog.error}
-          status={status}
-          statusLoading={statusLoading}
-          statusError={statusError}
-          meta={meta.data}
-          days={ALARM_WINDOW_DAYS}
-        />
-      )}
-    </>
+    <Body
+      view={effectiveView}
+      room={room}
+      metric={metric}
+      onRoomChange={setRoom}
+      onMetricChange={setMetric}
+      roomTabs={roomTabs}
+      metricTabs={metricTabs}
+      meta={meta.data}
+      accent={accent}
+      compact={!isDesktop}
+      sidebarCollapsed={sidebarCollapsed}
+      onToggleSidebar={onToggleSidebar}
+      range={range}
+      onRangeChange={setRange}
+      status={status}
+      statusLoading={statusLoading}
+      statusError={statusError}
+      alarms={alarms}
+      alarmsLoading={alarmLog.loading}
+      alarmsError={alarmLog.error}
+      alarmWindowDays={ALARM_WINDOW_DAYS}
+    />
   )
 
-  if (!isDesktop) {
+  if (isDesktop) {
     return (
-      // The phone layout is tuned for ~390px. On a tablet it is centred and
-      // capped rather than stretched, so line lengths and the hero number keep
-      // the proportions the design calls for.
-      <div className="mx-auto flex min-h-dvh w-full max-w-[560px] flex-col">
-        {effectiveView !== 'alarms' && (
-          <header className="flex items-center justify-between px-[18px] pt-3.5 pb-2.5">
-            <span className="text-[12px] font-semibold tracking-[0.3em]">
-              {effectiveView === 'history' ? 'HISTORY' : 'HERMES'}
-            </span>
-            <div className="text-chalk-soft flex items-center gap-2.5 text-[10px] tracking-[0.1em]">
-              {effectiveView === 'history' ? (
-                <span>RAW {meta.data?.retention.rawDays ?? 7}D → HOURLY</span>
-              ) : (
-                <>
-                  <span
-                    className={cn(
-                      'flex items-center gap-1.5',
-                      connected ? 'text-signal-ok' : 'text-signal-alert',
-                    )}
-                  >
-                    <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-current" aria-hidden />
-                    {connected ? 'LIVE' : 'OFFLINE'}
-                  </span>
-                  <span className="tabular">{formatClock(now)}</span>
-                </>
-              )}
-            </div>
-          </header>
-        )}
-
-        {apiError && (
-          <ErrorBanner message="Couldn't reach the HERMES API — some data may be stale or missing." compact />
-        )}
-
-        {/* The tab bar is fixed, out of this flow entirely, so it no longer
-            gives the last section clearance on its own — pb-24 stands in
-            for the space it would otherwise take up. */}
-        <main className="pb-24">{body}</main>
-
-        <BottomTabs view={effectiveView} onChange={setView} alarmCount={alarms.length} />
-      </div>
-    )
-  }
-
-  // Full-bleed: the dashboard is the window, not a card inside one. Nav lives
-  // in the rail on the left, so the content column only ever carries the
-  // filters for what's on screen — never a second, competing set of tabs.
-  return (
-    // Fixed to the viewport with the scroll moved onto the content column, so
-    // the rail never travels with the page — it's chrome, not content.
-    <div className="flex h-dvh overflow-hidden">
-      <Sidebar
+      <LayoutDesktop
         view={effectiveView}
         onViewChange={setView}
         connected={connected}
@@ -198,14 +140,25 @@ export default function App() {
         nodesLoading={nodes.loading}
         now={now}
         retentionNote={retentionNote}
-        collapsed={sidebarCollapsed}
-      />
-      <div className="min-w-0 flex-1 overflow-y-auto">
-        {apiError && (
-          <ErrorBanner message="Couldn't reach the HERMES API — some data may be stale or missing." />
-        )}
-        <main>{body}</main>
-      </div>
-    </div>
+        sidebarCollapsed={sidebarCollapsed}
+        apiError={apiError}
+      >
+        {body}
+      </LayoutDesktop>
+    )
+  }
+
+  return (
+    <LayoutMobile
+      view={effectiveView}
+      onViewChange={setView}
+      connected={connected}
+      now={now}
+      retentionRawDays={meta.data?.retention.rawDays ?? 7}
+      apiError={apiError}
+      alarmCount={alarms.length}
+    >
+      {body}
+    </LayoutMobile>
   )
 }

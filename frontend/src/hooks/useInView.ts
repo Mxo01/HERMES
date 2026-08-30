@@ -5,7 +5,9 @@ import { useLayoutEffect, useRef, useState } from 'react'
  * afterward, so a reveal animation plays once rather than replaying every
  * time the user scrolls past it.
  */
-export function useInView<T extends HTMLElement>(options?: IntersectionObserverInit): [React.RefObject<T | null>, boolean] {
+export function useInView<T extends HTMLElement>(
+  options?: IntersectionObserverInit,
+): [React.RefObject<T | null>, boolean] {
   const ref = useRef<T>(null)
   const [inView, setInView] = useState(false)
 

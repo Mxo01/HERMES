@@ -5,7 +5,10 @@ import { useEffect, useRef, useState } from 'react'
  * place instead of snapping — the first appearance counts up from zero,
  * later updates ripple from whatever was on screen.
  */
-export function useAnimatedNumber(target: number | undefined, durationMs = 600): number | undefined {
+export function useAnimatedNumber(
+  target: number | undefined,
+  durationMs = 600,
+): number | undefined {
   const [value, setValue] = useState(target)
   const fromRef = useRef<number | undefined>(target)
   const frameRef = useRef<number>(0)
