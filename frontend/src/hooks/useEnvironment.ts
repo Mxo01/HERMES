@@ -26,16 +26,3 @@ export function useClock(intervalMs = 1000): Date {
 
   return now
 }
-
-/** Closes a popover on outside click or Escape. */
-export function useDismissable(open: boolean, onDismiss: () => void): void {
-  useEffect(() => {
-    if (!open) return
-
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onDismiss()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onDismiss])
-}

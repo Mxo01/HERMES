@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { View } from '@/lib/view'
+import type { View } from '@/shared/const/view'
 
 const PATH_TO_VIEW: Record<string, View> = {
   '/': 'live',

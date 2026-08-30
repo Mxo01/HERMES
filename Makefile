@@ -27,7 +27,7 @@ API_PORT  ?= 5001
 DASH_PORT ?= 5173
 
 .PHONY: help setup dev demo backend frontend serve build check test typecheck \
-        lint firmware seed ports clean clean-all
+        lint format firmware seed ports clean clean-all
 
 # ----------------------------------------------------------------- overview
 
@@ -39,7 +39,8 @@ help:
 	@echo "  make serve      Run the production build the way the Pi does"
 	@echo
 	@echo "  make setup      Install dependencies (implied by the targets above)"
-	@echo "  make check      Tests, type checks and lint, both sides"
+	@echo "  make check      Tests, type checks, lint and format check, both sides"
+	@echo "  make format     Reformat the dashboard with Prettier"
 	@echo "  make build      Compile the dashboard into frontend/dist"
 	@echo "  make firmware   Compile the firmware for all three node types"
 	@echo
@@ -131,6 +132,11 @@ typecheck: setup
 lint: $(NODE_STAMP)
 	@echo "==> Dashboard lint"
 	@cd $(FRONTEND) && npm run lint --silent
+	@echo "==> Dashboard format"
+	@cd $(FRONTEND) && npm run format:check --silent
+
+format: $(NODE_STAMP)
+	@cd $(FRONTEND) && npm run format --silent
 
 # -------------------------------------------------------------------- build
 
