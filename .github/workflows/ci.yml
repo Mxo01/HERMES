@@ -6,10 +6,34 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Least privilege by default: only the release job writes anything, and it asks
+# for the permission itself. A fork's pull request gets a read-only token no
+# matter what, but the jobs that run on main should not be able to push either.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The whole history, not just the tip: a secret committed and then
+          # removed is still a secret anyone can `git log` out of a public repo.
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+
+      - name: Scan every commit
+        run: gitleaks git --no-banner --redact --config .gitleaks.toml --log-opts="--all"
+
   backend:
     name: Backend
     runs-on: ubuntu-latest
@@ -101,9 +125,11 @@ jobs:
 
   release:
     name: Release
-    needs: [backend, frontend, firmware]
+    needs: [secrets, backend, frontend, firmware]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
