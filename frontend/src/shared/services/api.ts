@@ -66,15 +66,16 @@ export const api = {
     get<HourlyPoint[]>(`/api/air-quality/history${query({ ...params })}`, signal),
 
   /**
-   * Daily aggregates. `offset` is the viewer's UTC offset in minutes so day
-   * boundaries line up with local midnight rather than UTC's.
+   * Daily aggregates. `tz` is the viewer's IANA zone, so every day — even one
+   * on the far side of a DST change — breaks at local midnight. A UTC offset
+   * would only be right for the days that share today's.
    */
   daily: (
     params: { room?: Room; metric?: Metric; from: string; to: string },
     signal?: AbortSignal,
   ) =>
     get<DailyPoint[]>(
-      `/api/air-quality/daily${query({ ...params, offset: -new Date().getTimezoneOffset() })}`,
+      `/api/air-quality/daily${query({ ...params, tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`,
       signal,
     ),
 

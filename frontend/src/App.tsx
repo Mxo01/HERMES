@@ -68,6 +68,10 @@ export default function App() {
     return alarms.filter((alarm) => new Date(alarm.startedAt).getTime() >= since).length
   }, [alarms])
 
+  // The phone's red tab badge is a call to action, so it counts what is
+  // still happening — not every alarm the window happens to contain.
+  const activeAlarms = useMemo(() => alarms.filter((alarm) => alarm.active).length, [alarms])
+
   /** Rooms you can select: the physical ones, not the synthetic outdoor one. */
   const roomTabs: TabItem<Room>[] = useMemo(() => {
     const rooms = meta.data?.sensorRooms ?? [KITCHEN, BEDROOM]
@@ -148,7 +152,7 @@ export default function App() {
       now={now}
       retentionRawDays={meta.data?.retention.rawDays ?? 7}
       apiError={apiError}
-      alarmCount={alarms.length}
+      activeAlarms={activeAlarms}
     >
       {body}
     </LayoutMobile>

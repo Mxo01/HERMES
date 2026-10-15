@@ -17,7 +17,7 @@ export function LayoutMobile({
   now,
   retentionRawDays,
   apiError,
-  alarmCount,
+  activeAlarms,
   children,
 }: LayoutMobileProps) {
   return (
@@ -60,7 +60,7 @@ export function LayoutMobile({
           for the space it would otherwise take up. */}
       <main className="pb-24">{children}</main>
 
-      <BottomTabs view={view} onChange={onViewChange} alarmCount={alarmCount} />
+      <BottomTabs view={view} onChange={onViewChange} activeAlarms={activeAlarms} />
     </div>
   )
 }

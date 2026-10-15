@@ -135,7 +135,10 @@ You push to `main`. Nothing else is required of you.
 and compiles the firmware for all three node types. Only if everything passes
 does it package `backend/`, the compiled `frontend/dist/` and `deploy/` into a
 tarball, publish it as a release with a SHA-256 checksum, and stop there. Your
-`.env`, the databases and the virtualenv are excluded.
+`.env`, the databases and the virtualenv are excluded. Only a commit that is
+still the tip of `main` when its run finishes is released: two merges close
+together can finish out of order, and the older one publishing last would
+otherwise roll the Pi back.
 
 **On the Pi.** Within five minutes the timer runs the updater, which:
 
@@ -231,12 +234,15 @@ is in `/etc/hermes`, and `update.sh` reads it as data instead of `source`-ing it
 | Change configuration | `sudo nano /opt/hermes/shared/hermes.env` then `sudo systemctl restart hermes` |
 | Back up the data | `sudo sqlite3 /opt/hermes/shared/data/hermes.db ".backup /tmp/hermes-backup.db"` |
 
-Rolling back by hand — every kept release is one symlink away:
+Rolling back by hand — every kept release is one symlink away. If the newer
+release changed the schema, also copy `shared/data/pre-update.db` (taken just
+before it started) back over the database while the service is stopped:
 
 ```bash
 ls /opt/hermes/releases
+sudo systemctl stop hermes
 sudo ln -sfn /opt/hermes/releases/v11-9f2a1c3 /opt/hermes/current
-sudo systemctl restart hermes
+sudo systemctl start hermes
 ```
 
 Pausing automatic updates, for instance while you are away:

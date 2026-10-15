@@ -10,7 +10,10 @@ id = "hermes-device-token"
 description = "DEVICE_TOKEN del firmware compilato con un valore reale invece di lasciarlo vuoto"
 # Il file committato deve restare `DEVICE_TOKEN = ""`: il token vero si mette
 # solo nella copia locale prima del flash.
-regex = '''DEVICE_TOKEN[ \t]*=[ \t]*"([^"]+)"'''
+# `(?:\[[0-9]*\])?`, `PROGMEM` e `=?` coprono anche le altre forme C/Arduino
+# (`char DEVICE_TOKEN[] = "..."`, `#define DEVICE_TOKEN "..."`): basta un
+# refactor della dichiarazione e la regola non deve diventare cieca.
+regex = '''DEVICE_TOKEN(?:\[[0-9]*\])?(?:[ \t]+PROGMEM)?[ \t]*=?[ \t]*"([^"]+)"'''
 secretGroup = 1
 path = '''firmware/.*\.(cpp|h|ino)$'''
 tags = ["hermes", "firmware", "secret"]
@@ -18,7 +21,8 @@ tags = ["hermes", "firmware", "secret"]
 [[rules]]
 id = "hermes-firmware-wifi-credentials"
 description = "Credenziali Wi-Fi hardcoded nel firmware (le reti si configurano dal portale WiFiManager)"
-regex = '''(?i)(?:wifi|wlan|sta)[_-]?(?:ssid|pass|password|psk)[ \t]*=[ \t]*"([^"]+)"'''
+# Stesse forme di dichiarazione accettate da hermes-device-token.
+regex = '''(?i)(?:wifi|wlan|sta)[_-]?(?:ssid|pass|password|psk)(?:\[[0-9]*\])?(?:[ \t]+PROGMEM)?[ \t]*=?[ \t]*"([^"]+)"'''
 secretGroup = 1
 path = '''firmware/.*\.(cpp|h|ino)$'''
 tags = ["hermes", "firmware", "wifi"]
@@ -32,7 +36,9 @@ description = "Variabile d'ambiente HERMES con un valore reale al posto del plac
 # dalla riga dopo, e `TELEGRAM_BOT_TOKEN=` vuoto matchava la riga successiva.
 # `[^\s#$]` come primo char del valore esclude commenti, valori vuoti e le
 # sostituzioni tipo $(python3 -c ...) di deploy/install.sh.
-regex = '''(?m)^[ \t]*(?:TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID|INGEST_TOKEN|SECRET_KEY|GITHUB_TOKEN)[ \t]*=[ \t]*([^\s#$][^\s]{7,})'''
+# Il prefisso opzionale copre `export X=...` negli script e `Environment=X=...`
+# nelle unit systemd di deploy/: senza, l'ancora `^` le lasciava passare.
+regex = '''(?m)^[ \t]*(?:export[ \t]+|Environment="?)?(?:TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID|INGEST_TOKEN|SECRET_KEY|GITHUB_TOKEN)[ \t]*=[ \t]*([^\s#$][^\s]{7,})'''
 secretGroup = 1
 tags = ["hermes", "env", "secret"]
 
@@ -42,8 +48,6 @@ description = "Falsi positivi noti"
 paths = [
   # Template senza valori reali: ogni riga e' commentata o vuota
   '''backend/\.env\.example$''',
-  # Fixture di test con token finti (es. 's3cret')
-  '''backend/tests/.*\.py$''',
   # Hash di integrita' di npm, non credenziali
   '''frontend/package-lock\.json$''',
   # La configurazione delle regole cita per forza i nomi delle variabili

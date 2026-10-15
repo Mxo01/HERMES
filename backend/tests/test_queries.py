@@ -1,4 +1,5 @@
 import datetime
+import zoneinfo
 
 import pytest
 
@@ -8,6 +9,8 @@ from hermes.domain.models import NodeState, Resolution
 from hermes.infrastructure.db.reading_repository import SqliteReadingRepository
 
 from .conftest import FrozenClock
+
+ROME = zoneinfo.ZoneInfo('Europe/Rome')
 
 
 def _seed_days(services: Services, clock: FrozenClock, days: int) -> None:
@@ -201,7 +204,7 @@ def test_alarm_counts_follow_the_same_day_boundary_as_the_readings(
 ) -> None:
     """An alarm just after local midnight belongs to the local day, not the UTC one."""
     # The clock starts at 14:32 UTC; move it to 23:30, which is 01:30 the
-    # following day for a viewer at UTC+2.
+    # following day in Rome (UTC+2 in August).
     clock.advance(hours=8, minutes=58)
     assert clock.now().hour == 23
     services.ingestion.ingest({'room': 'kitchen', 'sensor': 'mq2', 'gas': 180})
@@ -209,6 +212,41 @@ def test_alarm_counts_follow_the_same_day_boundary_as_the_readings(
     utc_day = clock.now().date()
     local_day = utc_day + datetime.timedelta(days=1)
 
-    counts = services.alarms.counts_by_day(utc_day, local_day, offset_minutes=120)
+    counts = services.alarms.counts_by_day(utc_day, local_day, tz=ROME)
     assert counts.get(local_day) == 1
     assert counts.get(utc_day) is None
+
+
+def test_daily_days_follow_the_zone_across_a_dst_change(services: Services) -> None:
+    """One range, two offsets: Rome is UTC+2 until 25 Oct 2026 and UTC+1 after.
+
+    A single fixed offset (whatever applied when the page loaded) would put one
+    side of the change an hour off, moving these late-evening readings onto
+    the wrong day.
+    """
+    repository = SqliteReadingRepository(services.database)
+    utc = datetime.UTC
+    # 00:30 on 21 Oct in Rome (CEST), and 23:30 on 30 Oct in Rome (CET).
+    repository.insert_many('air_quality', 'kitchen', {'temperature': 18.0},
+                           datetime.datetime(2026, 10, 20, 22, 30, tzinfo=utc))
+    repository.insert_many('air_quality', 'kitchen', {'temperature': 12.0},
+                           datetime.datetime(2026, 10, 30, 22, 30, tzinfo=utc))
+
+    points = services.readings.daily(
+        'kitchen', 'temperature', datetime.date(2026, 10, 20), datetime.date(2026, 10, 31), tz=ROME
+    )
+
+    assert {point.day: point.avg for point in points} == {
+        datetime.date(2026, 10, 21): 18.0,
+        datetime.date(2026, 10, 30): 12.0,
+    }
+
+
+def test_daily_leaves_out_hours_outside_the_local_range(services: Services) -> None:
+    repository = SqliteReadingRepository(services.database)
+    # 23:30 on 9 Aug in Rome: inside the 9th, outside the 10th.
+    repository.insert_many('air_quality', 'kitchen', {'temperature': 25.0},
+                           datetime.datetime(2026, 8, 9, 21, 30, tzinfo=datetime.UTC))
+
+    day = datetime.date(2026, 8, 10)
+    assert services.readings.daily('kitchen', 'temperature', day, day, tz=ROME) == []

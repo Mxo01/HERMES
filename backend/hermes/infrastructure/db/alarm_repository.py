@@ -6,7 +6,7 @@ import sqlite3
 from typing import Any
 
 from ...domain.models import Alarm, AlarmKind, Severity
-from .database import Database, from_sql, to_sql
+from .database import Database, from_sql, local_days, to_sql
 
 logger = logging.getLogger(__name__)
 
@@ -178,35 +178,31 @@ class SqliteAlarmRepository:
         start: datetime.date,
         end: datetime.date,
         room: str | None,
-        offset_minutes: int = 0,
+        tz: datetime.tzinfo = datetime.UTC,
     ) -> dict[datetime.date, int]:
-        """Alarms per day, bucketed with the same offset the readings use.
+        """Alarms per local day, bucketed in the same zone the readings use.
 
         Without it an alarm just after local midnight lands on the previous
         UTC day and shows up against the wrong row of the day-by-day table.
         """
-        shift = f'{offset_minutes:+d} minutes'
+        first, after = local_days(start, end, tz)
         clause = ''
-        params: list[Any] = [shift, shift, start.isoformat(), end.isoformat()]
+        params: list[Any] = [to_sql(first), to_sql(after)]
         if room:
             clause = ' AND room = ?'
             params.append(room)
 
         with self._db.connect() as conn:
             rows = conn.execute(
-                f'''
-                SELECT date(started_at, ?) AS day, COUNT(*) AS total
-                FROM alarms
-                WHERE date(started_at, ?) BETWEEN ? AND ?{clause}
-                GROUP BY day
-                ''',
+                f'SELECT started_at FROM alarms WHERE started_at >= ? AND started_at < ?{clause}',
                 params,
             ).fetchall()
 
         counts: dict[datetime.date, int] = {}
         for row in rows:
-            try:
-                counts[datetime.date.fromisoformat(row['day'])] = int(row['total'])
-            except (TypeError, ValueError):
+            started = from_sql(row['started_at'])
+            if started is None:
                 continue
+            day = started.astimezone(tz).date()
+            counts[day] = counts.get(day, 0) + 1
         return counts

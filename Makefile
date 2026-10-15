@@ -27,7 +27,7 @@ API_PORT  ?= 5001
 DASH_PORT ?= 5173
 
 .PHONY: help setup dev demo backend frontend serve build check test typecheck \
-        lint format firmware seed ports clean clean-all
+        lint format firmware seed ports hooks clean clean-all
 
 # ----------------------------------------------------------------- overview
 
@@ -68,10 +68,21 @@ $(NODE_STAMP): $(FRONTEND)/package-lock.json
 
 # Blocks a commit that stages a secret. `core.hooksPath` is per-clone config,
 # never cloned with the repository, so every checkout has to opt in once.
+# A source download without .git has nothing to hook into, and `git config`
+# would abort every target that depends on `setup` — skip it there instead.
+# An existing hooksPath (often a global one) is replaced, so say so out loud.
 hooks:
-	@git config core.hooksPath .githooks
+	@if ! git rev-parse --git-dir >/dev/null 2>&1; then \
+		echo "==> Not a git checkout: skipping the pre-commit secret scan"; \
+	else \
+		current=$$(git config --get core.hooksPath); \
+		if [ -n "$$current" ] && [ "$$current" != .githooks ]; then \
+			echo "==> core.hooksPath was '$$current': hooks from there no longer run in this repo"; \
+		fi; \
+		git config core.hooksPath .githooks; \
+	fi
 	@command -v gitleaks >/dev/null 2>&1 || \
-		echo "==> gitleaks is not installed: the pre-commit scan will be skipped (brew install gitleaks)"
+		echo "==> gitleaks is not installed: commits will be refused until you run brew install gitleaks"
 
 # --------------------------------------------------------------- run it all
 

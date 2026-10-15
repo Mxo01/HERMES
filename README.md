@@ -163,8 +163,10 @@ where both contain the same hour the raw rows win because they are the finer
 source. The history view labels each day `RAW 30s` or `HOURLY AVG` so you can
 always see which resolution you are looking at.
 
-Daily summaries take a timezone offset, so days break at *your* midnight rather
-than UTC's — otherwise the evening cooking spike would land on the wrong day.
+Daily summaries take the viewer's time zone (an IANA name such as
+`Europe/Rome`), so days break at *your* midnight rather than UTC's — otherwise
+the evening cooking spike would land on the wrong day. A zone rather than an
+offset, because a range that crosses a DST change has two offsets in it.
 
 ### 4.3 The alarm engine
 
@@ -347,7 +349,7 @@ Every response uses one envelope:
 | `POST` | `/api/air-quality/data` | Node ingestion — requires `X-Hermes-Token` when configured |
 | `GET` | `/api/air-quality/status` | Latest value of every metric, per room |
 | `GET` | `/api/air-quality/history` | Hourly aggregates — `?room=&metric=&hours=` (max 720) |
-| `GET` | `/api/air-quality/daily` | Daily min/avg/max — `?room=&metric=&from=&to=&offset=` |
+| `GET` | `/api/air-quality/daily` | Daily min/avg/max — `?room=&metric=&from=&to=&tz=` |
 | `GET` | `/api/alarms` | Alarm log — `?days=&room=&limit=` |
 | `GET` | `/api/nodes` | Per-board liveness |
 | `GET` | `/api/meta` | Rooms, metrics, thresholds, retention, outdoor location |
@@ -537,7 +539,9 @@ variables:
   the commit on a hit. `core.hooksPath` is per-clone configuration and is never
   cloned with the repository, so a fresh checkout has to run `make setup` (or
   `make hooks`) once. Install the scanner with `brew install gitleaks`; without
-  it the hook warns and lets the commit through.
+  it the hook refuses the commit, because the CI check below only runs after
+  the push, when the secret is already public. `HERMES_SKIP_SECRET_SCAN=1 git
+  commit …` skips it deliberately for a single commit.
 - **In CI.** The `Secret scan` job walks *every* commit on every branch, not just
   the tip — a secret that was committed and later removed is still readable with
   `git log`. Nothing releases unless it passes.
