@@ -539,7 +539,9 @@ variables:
   the commit on a hit. `core.hooksPath` is per-clone configuration and is never
   cloned with the repository, so a fresh checkout has to run `make setup` (or
   `make hooks`) once. Install the scanner with `brew install gitleaks`; without
-  it the hook warns and lets the commit through.
+  it the hook refuses the commit, because the CI check below only runs after
+  the push, when the secret is already public. `HERMES_SKIP_SECRET_SCAN=1 git
+  commit …` skips it deliberately for a single commit.
 - **In CI.** The `Secret scan` job walks *every* commit on every branch, not just
   the tip — a secret that was committed and later removed is still readable with
   `git log`. Nothing releases unless it passes.
