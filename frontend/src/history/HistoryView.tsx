@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { CalendarDays } from 'lucide-react'
 import { BandChart } from '@/shared/components/charts/BandChart'
 import { Pager } from '@/shared/components/controls/Pager'
 import { RangePicker } from '@/shared/components/controls/RangePicker'
@@ -8,6 +8,7 @@ import { CompareStats } from '@/history/components/CompareStats'
 import { DayRows } from '@/history/components/DayRows'
 import { DayTable } from '@/history/components/DayTable'
 import { Reveal } from '@/shared/components/common/Reveal'
+import { SidebarToggle } from '@/shared/components/shell/SidebarToggle'
 import { useDaily } from './history.service'
 import { buildDayRows, paginate } from './history.utils'
 import { halfPeriodStats } from './history.utils'
@@ -156,19 +157,7 @@ export function HistoryView({
     <div className="flex flex-col gap-4 p-4">
       <div className="glass flex items-center justify-between rounded-2xl px-[26px] py-3">
         <div className="flex items-center gap-3.5">
-          <button
-            type="button"
-            onClick={onToggleSidebar}
-            className="glass-sm text-chalk-ghost hover:text-chalk-dim rounded-md p-1.5 transition-colors duration-150"
-            aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-            title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-          >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen size={15} strokeWidth={2} aria-hidden />
-            ) : (
-              <PanelLeftClose size={15} strokeWidth={2} aria-hidden />
-            )}
-          </button>
+          <SidebarToggle collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
           <Tabs items={roomTabs} value={room} onChange={onRoomChange} label="Room" />
         </div>
 

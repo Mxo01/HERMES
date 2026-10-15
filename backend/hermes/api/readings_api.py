@@ -11,7 +11,7 @@ from flask import Blueprint, Response, request
 from ..container import Services
 from . import schemas
 from .auth import verify_device_token
-from .params import date_arg, int_arg, string_arg
+from .params import date_arg, int_arg, string_arg, zone_arg
 from .responses import success
 
 
@@ -42,8 +42,9 @@ def create_readings_blueprint(services: Services) -> Blueprint:
 
     @blueprint.get('/daily')
     def daily() -> tuple[Response, int]:
-        """Daily min/avg/max between ``from`` and ``to`` (inclusive)."""
-        today = services.clock.now().date()
+        """Daily min/avg/max between ``from`` and ``to`` (inclusive), in the ``tz`` zone."""
+        tz = zone_arg('tz')
+        today = services.clock.now().astimezone(tz).date()
         start = date_arg('from', today - datetime.timedelta(days=13))
         end = date_arg('to', today)
 
@@ -52,7 +53,7 @@ def create_readings_blueprint(services: Services) -> Blueprint:
             metric=string_arg('metric'),
             start=start,
             end=end,
-            offset_minutes=int_arg('offset', 0),
+            tz=tz,
         )
         return success(
             [schemas.daily_point(point) for point in points],

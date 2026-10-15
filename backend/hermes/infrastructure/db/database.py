@@ -30,6 +30,19 @@ def to_sql_hour(value: datetime.datetime) -> str:
     return value.strftime(SQL_HOUR)
 
 
+def local_days(
+    start: datetime.date, end: datetime.date, tz: datetime.tzinfo
+) -> tuple[datetime.datetime, datetime.datetime]:
+    """The UTC instants where local ``start`` begins and local ``end`` ends.
+
+    Derived from the zone itself rather than a fixed offset, so a range that
+    crosses a DST change still breaks every day at its own local midnight.
+    """
+    first = datetime.datetime.combine(start, datetime.time(), tzinfo=tz)
+    after = datetime.datetime.combine(end + datetime.timedelta(days=1), datetime.time(), tzinfo=tz)
+    return first.astimezone(datetime.UTC), after.astimezone(datetime.UTC)
+
+
 def from_sql(value: str | None) -> datetime.datetime | None:
     """Parse a stored timestamp back into an aware UTC datetime."""
     if not value:

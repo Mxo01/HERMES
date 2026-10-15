@@ -64,6 +64,19 @@ def test_daily_rejects_a_malformed_date(client: FlaskClient) -> None:
     assert client.get('/api/air-quality/daily?from=yesterday').status_code == 400
 
 
+def test_daily_accepts_an_iana_zone(client: FlaskClient) -> None:
+    response = client.get('/api/air-quality/daily?room=kitchen&metric=temperature&tz=Europe/Rome')
+
+    assert response.status_code == 200
+
+
+def test_daily_rejects_an_unknown_zone(client: FlaskClient) -> None:
+    response = client.get('/api/air-quality/daily?tz=Mars/Olympus_Mons')
+
+    assert response.status_code == 400
+    assert 'tz' in response.get_json()['errors']
+
+
 def test_the_alarm_log_lists_the_breach_that_just_happened(client: FlaskClient) -> None:
     _post(client, {'room': 'kitchen', 'sensor': 'mq2', 'gas': 180})
 

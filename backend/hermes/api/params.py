@@ -1,6 +1,7 @@
 """Query-string parsing that fails with domain errors instead of 500s."""
 
 import datetime
+import zoneinfo
 
 from flask import request
 
@@ -30,3 +31,14 @@ def date_arg(name: str, default: datetime.date) -> datetime.date:
         return datetime.date.fromisoformat(raw.strip()[:10])
     except ValueError:
         raise ValidationError({name: 'Must be an ISO date (YYYY-MM-DD)'}) from None
+
+
+def zone_arg(name: str) -> datetime.tzinfo:
+    """An IANA zone name such as ``Europe/Rome``; UTC when absent."""
+    raw = request.args.get(name)
+    if raw is None or raw.strip() == '':
+        return datetime.UTC
+    try:
+        return zoneinfo.ZoneInfo(raw.strip())
+    except (zoneinfo.ZoneInfoNotFoundError, ValueError):
+        raise ValidationError({name: 'Must be an IANA time zone, e.g. Europe/Rome'}) from None

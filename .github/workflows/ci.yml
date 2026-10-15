@@ -130,15 +130,36 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # One release at a time, so the tip-of-main check below and the publish it
+    # guards cannot interleave with another run's.
+    concurrency:
+      group: release
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
 
+      # The Pi installs whichever release GitHub created last. Two merges close
+      # together can finish out of order, and the older one publishing second
+      # would roll the Pi back. Only the commit still at the tip of main ships.
+      - name: Check this is still the tip of main
+        id: tip
+        run: |
+          tip=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [[ "$tip" == "$GITHUB_SHA" ]]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main has moved on to $tip; not releasing $GITHUB_SHA"
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/download-artifact@v4
+        if: steps.tip.outputs.current == 'true'
         with:
           name: dashboard
           path: frontend/dist
 
       - name: Assemble the release
+        if: steps.tip.outputs.current == 'true'
         id: package
         run: |
           TAG="v${{ github.run_number }}-$(git rev-parse --short HEAD)"
@@ -160,6 +181,7 @@ jobs:
           sha256sum "hermes-$TAG.tar.gz" > "hermes-$TAG.tar.gz.sha256"
 
       - name: Publish
+        if: steps.tip.outputs.current == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

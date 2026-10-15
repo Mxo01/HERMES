@@ -12,6 +12,7 @@ from hermes.api import register_api
 from hermes.api.spa import register_spa
 from hermes.config import Settings
 from hermes.container import Services, build_services
+from hermes.factory import create_app
 
 from .conftest import FrozenClock, RecordingPublisher
 
@@ -143,3 +144,26 @@ def test_a_non_ascii_token_is_rejected_not_a_crash(secured: FlaskClient) -> None
     response = secured.post('/api/air-quality/data', json=READING, headers={'X-Hermes-Token': garbled})
 
     assert response.status_code == 401
+
+
+# ---------------------------------------------------------- realtime stream
+
+
+@pytest.fixture
+def realtime(settings: Settings) -> FlaskClient:
+    application = create_app(settings, start_jobs=False)
+    return application.app.test_client()
+
+
+def _handshake(client: FlaskClient, origin: str) -> int:
+    response = client.get('/socket.io/?EIO=4&transport=polling', headers={'Origin': origin})
+    return response.status_code
+
+
+def test_the_live_stream_accepts_the_dashboard_origin(realtime: FlaskClient) -> None:
+    assert _handshake(realtime, 'http://localhost') == 200
+
+
+def test_the_live_stream_refuses_a_foreign_origin(realtime: FlaskClient) -> None:
+    """Any page a viewer opens could otherwise subscribe to every reading."""
+    assert _handshake(realtime, 'https://evil.example') == 400

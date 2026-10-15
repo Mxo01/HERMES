@@ -11,7 +11,7 @@ from typing import Any
 
 from ...domain import catalog
 from ...domain.models import DailyPoint, HourlyPoint, MetricPoint, Resolution
-from .database import Database, from_sql, to_sql, to_sql_hour
+from .database import Database, from_sql, local_days, to_sql, to_sql_hour
 
 #: Which board reports a metric — lets us derive per-node liveness from the
 #: metric-shaped ``readings`` table without a redundant column.
@@ -175,7 +175,7 @@ class SqliteReadingRepository:
         metric: str | None,
         start: datetime.date,
         end: datetime.date,
-        offset_minutes: int = 0,
+        tz: datetime.tzinfo = datetime.UTC,
     ) -> list[DailyPoint]:
         """Daily summaries between ``start`` and ``end`` inclusive.
 
@@ -187,48 +187,60 @@ class SqliteReadingRepository:
         the outdoor room — whose backfill deliberately covers hours it also has
         raw samples for — is not double counted either.
 
-        ``offset_minutes`` shifts the day boundary so rows line up with the
-        viewer's local midnight rather than UTC's.
+        ``tz`` is the viewer's zone. Hours are bucketed in UTC and each one is
+        then assigned to the local day it starts in, so every day — including
+        those either side of a DST change — breaks at the viewer's midnight. A
+        fixed offset cannot do that: it is right for half the range at best.
         """
-        shift = f'{offset_minutes:+d} minutes'
-        first = start.isoformat()
-        last = end.isoformat()
+        first, after = local_days(start, end, tz)
+        # Whole UTC hours covering the window; zones whose offset is not a
+        # whole hour get their boundary hour assigned to the day it starts in.
+        floor = to_sql_hour(first)
+        ceiling = to_sql_hour(after + datetime.timedelta(minutes=59, seconds=59))
         filters, params = self._filters(room, metric)
 
         raw_sql = f'''
             SELECT room, metric,
-                   date(timestamp, ?) AS day,
                    strftime('%Y-%m-%d %H:00:00', timestamp) AS bucket,
                    AVG(value) AS avg_value, MIN(value) AS min_value,
                    MAX(value) AS max_value, COUNT(*) AS reading_count
             FROM readings
-            WHERE domain = ? AND date(timestamp, ?) BETWEEN ? AND ?{filters}
+            WHERE domain = ? AND timestamp >= ? AND timestamp < ?{filters}
             GROUP BY room, metric, bucket
         '''
         rolled_sql = f'''
-            SELECT room, metric,
-                   date(hour, ?) AS day, hour AS bucket,
+            SELECT room, metric, hour AS bucket,
                    avg_value, min_value, max_value, reading_count
             FROM hourly_aggregates
-            WHERE domain = ? AND date(hour, ?) BETWEEN ? AND ?{filters}
+            WHERE domain = ? AND hour >= ? AND hour < ?{filters}
         '''
-        args = [shift, domain, shift, first, last, *params]
+        args = [domain, floor, ceiling, *params]
         with self._db.connect() as conn:
             raw = conn.execute(raw_sql, args).fetchall()
             rolled = conn.execute(rolled_sql, args).fetchall()
 
-        return self._days_from_hours(rolled, raw)
+        return self._days_from_hours(rolled, raw, start, end, tz)
 
     @staticmethod
-    def _days_from_hours(rolled: list[Any], raw: list[Any]) -> list[DailyPoint]:
-        """Fold hour buckets into days, raw winning wherever both tables have one."""
+    def _days_from_hours(
+        rolled: list[Any],
+        raw: list[Any],
+        start: datetime.date,
+        end: datetime.date,
+        tz: datetime.tzinfo,
+    ) -> list[DailyPoint]:
+        """Fold hour buckets into local days, raw winning wherever both tables have one."""
         hours: dict[tuple[str, str, str], dict[str, Any]] = {}
         for source, is_raw in ((rolled, False), (raw, True)):
             for row in source:
-                if row['avg_value'] is None:
+                begins = from_sql(row['bucket'])
+                if row['avg_value'] is None or begins is None:
+                    continue
+                local_day = begins.astimezone(tz).date()
+                if not start <= local_day <= end:
                     continue
                 hours[(row['room'], row['metric'], row['bucket'])] = {
-                    'day': row['day'],
+                    'day': local_day,
                     'raw': is_raw,
                     'avg': row['avg_value'],
                     'min': row['min_value'],
@@ -236,7 +248,7 @@ class SqliteReadingRepository:
                     'count': row['reading_count'] or 1,
                 }
 
-        days: dict[tuple[str, str, str], dict[str, Any]] = {}
+        days: dict[tuple[str, str, datetime.date], dict[str, Any]] = {}
         for (room_id, metric_id, _), hour in hours.items():
             key = (room_id, metric_id, hour['day'])
             day = days.get(key)
@@ -258,16 +270,12 @@ class SqliteReadingRepository:
             day['raw'] = day['raw'] and hour['raw']
 
         points: list[DailyPoint] = []
-        for (room_id, metric_id, bucket), day in days.items():
-            try:
-                parsed = datetime.date.fromisoformat(bucket)
-            except ValueError:
-                continue
+        for (room_id, metric_id, local_day), day in days.items():
             points.append(
                 DailyPoint(
                     room=room_id,
                     metric=metric_id,
-                    day=parsed,
+                    day=local_day,
                     avg=day['weighted'] / day['count'],
                     min=day['min'],
                     max=day['max'],

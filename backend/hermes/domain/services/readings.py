@@ -41,7 +41,7 @@ class ReadingQueryService:
         metric: str | None,
         start: datetime.date,
         end: datetime.date,
-        offset_minutes: int = 0,
+        tz: datetime.tzinfo = datetime.UTC,
     ) -> list[DailyPoint]:
         """Daily min/avg/max, annotated with alarm counts and data resolution."""
         room = self._check_room(room)
@@ -50,16 +50,12 @@ class ReadingQueryService:
             raise ValidationError({'from': 'Start date must not be after the end date'})
         if (end - start).days + 1 > MAX_RANGE_DAYS:
             raise ValidationError({'from': f'Range must not exceed {MAX_RANGE_DAYS} days'})
-        if abs(offset_minutes) > 14 * 60:
-            raise ValidationError({'offset': 'Timezone offset must be within ±14 hours'})
 
-        points = self._repository.daily(
-            catalog.AIR_QUALITY_DOMAIN, room, metric, start, end, offset_minutes
-        )
+        points = self._repository.daily(catalog.AIR_QUALITY_DOMAIN, room, metric, start, end, tz)
         if self._alarms is None:
             return points
 
-        per_day = self._alarms.counts_by_day(start, end, room, offset_minutes)
+        per_day = self._alarms.counts_by_day(start, end, room, tz)
         return [
             DailyPoint(
                 room=point.room,

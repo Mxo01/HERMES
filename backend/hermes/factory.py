@@ -44,7 +44,10 @@ def create_app(settings: Settings | None = None, *, start_jobs: bool = True) -> 
     if origins:
         CORS(app, origins=origins)
 
-    socketio = SocketIO(app, cors_allowed_origins=origins or [], async_mode='threading')
+    # None, not []: engine.io reads an empty list as "skip the origin check"
+    # entirely, which would let any page a viewer opens subscribe to the live
+    # stream. None keeps its same-origin default.
+    socketio = SocketIO(app, cors_allowed_origins=origins or None, async_mode='threading')
 
     services = build_services(settings, publisher=SocketIOPublisher(socketio))
     services.database.migrate()

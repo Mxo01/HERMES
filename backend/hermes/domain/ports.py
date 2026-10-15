@@ -64,7 +64,7 @@ class ReadingRepository(Protocol):
         metric: str | None,
         start: datetime.date,
         end: datetime.date,
-        offset_minutes: int = 0,
+        tz: datetime.tzinfo = datetime.UTC,
     ) -> list[DailyPoint]: ...
 
     def aggregate_and_purge(self, cutoff: datetime.datetime) -> dict[str, int]: ...
@@ -107,7 +107,7 @@ class AlarmRepository(Protocol):
         start: datetime.date,
         end: datetime.date,
         room: str | None,
-        offset_minutes: int = 0,
+        tz: datetime.tzinfo = datetime.UTC,
     ) -> dict[datetime.date, int]: ...
 
 

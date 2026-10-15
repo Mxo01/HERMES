@@ -83,9 +83,9 @@ class AlarmService:
         start: datetime.date,
         end: datetime.date,
         room: str | None = None,
-        offset_minutes: int = 0,
+        tz: datetime.tzinfo = datetime.UTC,
     ) -> dict[datetime.date, int]:
-        return self._repository.counts_by_day(start, end, room, offset_minutes)
+        return self._repository.counts_by_day(start, end, room, tz)
 
     # ----------------------------------------------------------------- write
 

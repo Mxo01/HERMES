@@ -172,9 +172,9 @@ MIGRATIONS: dict[int, str] = {
 def apply_migrations(conn: sqlite3.Connection) -> None:
     version = conn.execute('PRAGMA user_version').fetchone()[0]
 
+    # Each migration commits together with its own version bump. Bumping only
+    # once at the end let a failure in migration N+1 leave N applied but
+    # unrecorded, so the next start re-ran N against tables it had already
+    # dropped and the backend could never boot again.
     for target in range(version + 1, SCHEMA_VERSION + 1):
-        conn.executescript(MIGRATIONS[target])
-
-    if version < SCHEMA_VERSION:
-        conn.execute(f'PRAGMA user_version = {SCHEMA_VERSION}')
-        conn.commit()
+        conn.executescript(f'BEGIN;\n{MIGRATIONS[target]}\nPRAGMA user_version = {target};\nCOMMIT;')

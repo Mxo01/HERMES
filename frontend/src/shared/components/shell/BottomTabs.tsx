@@ -19,7 +19,7 @@ import type { BottomTabsProps } from '../../models/shell/BottomTabs.model'
  * positioning removes it from the content's height entirely, so it never
  * has anywhere to hop from.
  */
-export function BottomTabs({ view, onChange, alarmCount }: BottomTabsProps) {
+export function BottomTabs({ view, onChange, activeAlarms }: BottomTabsProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const buttonRefs = useRef<Partial<Record<View, HTMLButtonElement | null>>>({})
   const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null)
@@ -55,7 +55,7 @@ export function BottomTabs({ view, onChange, alarmCount }: BottomTabsProps) {
         {MOBILE_VIEWS.map((target) => {
           const Icon = VIEW_ICONS[target]
           const active = view === target
-          const showBadge = target === 'alarms' && alarmCount > 0
+          const showBadge = target === 'alarms' && activeAlarms > 0
           return (
             <button
               key={target}
@@ -81,7 +81,7 @@ export function BottomTabs({ view, onChange, alarmCount }: BottomTabsProps) {
                     // visibly left of true-centre in a badge this small.
                     style={{ letterSpacing: 'normal' }}
                   >
-                    {alarmCount}
+                    {activeAlarms}
                   </span>
                 )}
               </span>
