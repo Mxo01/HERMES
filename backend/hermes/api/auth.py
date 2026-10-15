@@ -32,7 +32,9 @@ def verify_device_token(expected: str | None) -> None:
 
     presented = request.headers.get(HEADER, '')
     # Constant-time comparison: a timing oracle here would leak the token
-    # byte by byte to anyone able to reach the endpoint.
-    if not hmac.compare_digest(presented, expected):
+    # byte by byte to anyone able to reach the endpoint. Compared as bytes:
+    # with str arguments compare_digest raises on any non-ASCII character, so a
+    # garbled header would surface as a 500 instead of a 401.
+    if not hmac.compare_digest(presented.encode(), expected.encode()):
         logger.warning('Rejected ingestion from %s: bad or missing device token', request.remote_addr)
         raise UnauthorizedError('Invalid or missing device token')

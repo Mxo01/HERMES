@@ -46,13 +46,10 @@ class NodeService:
             # reported outage by the offline threshold plus up to one watchdog
             # interval.
             since = status.last_seen or now
-            minutes = max(1, int((now - since).total_seconds()) // 60)
-            self._alarms.open_node_alarm(
-                status.room,
-                status.sensor,
-                f'{status.label} silent since {since:%H:%M} ({minutes} min)',
-                since,
-            )
+            # No clock time in the text: it would be the server's UTC, hours
+            # off from the alarm's own startedAt that the dashboard shows in
+            # the viewer's zone.
+            self._alarms.open_node_alarm(status.room, status.sensor, f'{status.label} stopped reporting', since)
         if self._publisher is not None:
             self._publisher.publish(
                 'node_status',

@@ -102,6 +102,12 @@ void setup() {
   #endif
 
   WiFiManager wifiManager;
+  // Senza timeout il portale di configurazione resta aperto per sempre: dopo
+  // un blackout il nodo si riaccende prima del router, non trova la rete e
+  // non invia piu' nulla finche' qualcuno non lo riavvia a mano (per il nodo 1
+  // vuol dire niente rilevamento gas). Con il timeout autoConnect ritorna
+  // false e il restart qui sotto riprova la rete salvata.
+  wifiManager.setConfigPortalTimeout(180);
   String apName = "Hermes-Setup-" + getRoomName() + "-" + getSensorName();
   if (!wifiManager.autoConnect(apName.c_str())) {
     ESP.restart();

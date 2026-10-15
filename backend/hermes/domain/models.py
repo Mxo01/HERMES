@@ -8,6 +8,8 @@ import datetime
 from dataclasses import dataclass
 from enum import StrEnum
 
+from . import catalog
+
 
 @dataclass(frozen=True, slots=True)
 class SensorReading:
@@ -142,15 +144,16 @@ class WeatherObservation:
     observed_at: datetime.datetime
     temperature: float | None = None
     humidity: float | None = None
-    aq: float | None = None
+    #: European AQI, not comparable with the indoor ``aq`` reading.
+    aqi: float | None = None
 
     def metrics(self) -> dict[str, float]:
         return {
             key: value
             for key, value in (
-                ('temperature', self.temperature),
-                ('humidity', self.humidity),
-                ('aq', self.aq),
+                (catalog.TEMPERATURE, self.temperature),
+                (catalog.HUMIDITY, self.humidity),
+                (catalog.OUTDOOR_AQI, self.aqi),
             )
             if value is not None
         }

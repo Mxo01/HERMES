@@ -135,3 +135,11 @@ def test_a_relative_dist_path_is_resolved_against_the_working_directory(
     client = _client(dataclasses.replace(settings, frontend_dist='./build'), clock, publisher)
 
     assert client.get('/').status_code == 200
+
+
+def test_a_non_ascii_token_is_rejected_not_a_crash(secured: FlaskClient) -> None:
+    """compare_digest raises on non-ASCII str; that must still be a 401."""
+    garbled = 'é'.encode().decode('latin-1')
+    response = secured.post('/api/air-quality/data', json=READING, headers={'X-Hermes-Token': garbled})
+
+    assert response.status_code == 401

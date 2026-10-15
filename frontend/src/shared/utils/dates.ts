@@ -82,6 +82,16 @@ export const RANGE_PRESETS: RangePreset[] = [
   { label: 'LAST 30 DAYS', days: 30 },
 ]
 
+/**
+ * Move a range that ended on `previousToday` so it ends on `today`, keeping its
+ * length. Any other range is returned untouched.
+ */
+export function rollRange(range: DateRange, previousToday: Date, today: Date): DateRange {
+  if (!sameDay(range.to, previousToday)) return range
+  const shift = daysBetween(previousToday, today) - 1
+  return { from: addDays(range.from, shift), to: addDays(range.to, shift) }
+}
+
 export function presetRange(days: number, today = new Date()): DateRange {
   const end = startOfDay(today)
   return { from: addDays(end, -(days - 1)), to: end }

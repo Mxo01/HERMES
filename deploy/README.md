@@ -152,8 +152,12 @@ tarball, publish it as a release with a SHA-256 checksum, and stop there. Your
    `current` is missing or half-written.
 6. Restarts the service and polls `/api/health` for up to a minute.
 7. **If it never becomes healthy**, points `current` back at the previous
-   release, restarts, and exits with an error. The Pi keeps serving the version
-   that worked.
+   release, restores the database from a copy taken just before the restart
+   (the new release may already have migrated the schema), reinstalls the
+   previous Python packages if they changed, restarts, and exits with an error.
+   The Pi keeps serving the version that worked. The rejected tag is written to
+   `/var/lib/hermes-update/rejected-release` and skipped on every later run until
+   a newer release ships.
 8. Prunes old releases, keeping the last three.
 9. Replaces itself with the updater from the new release — last, and atomically,
    so the copy currently executing stays intact.
@@ -192,19 +196,25 @@ sudo /opt/hermes/bin/update.sh
 │   ├── v12-a1b2c3d/                   backend · frontend/dist · deploy
 │   ├── v11-9f2a1c3/                   kept for rollback
 │   └── v10-77e4b8a/
-├── shared/                            never touched by a deploy
+├── shared/                            kept across deploys
 │   ├── hermes.env                     configuration and secrets (mode 600)
-│   ├── deploy.env                     which repository to pull from
-│   └── data/hermes.db                 the database
+│   └── data/
+│       ├── hermes.db                  the database
+│       └── pre-update.db              copy taken before the last update
 ├── venv/                              Python environment
-└── bin/update.sh                      the updater
+└── bin/update.sh                      the updater (root-owned)
+
+/etc/hermes/deploy.env                 which repository to pull from (root, 600)
+/var/lib/hermes-update/                the updater's state (root)
 ```
 
 The split is the point: **releases are disposable, `shared/` is not.** The
 database lives outside the release directory, so a deploy — or a rollback, or
 deleting every release — cannot lose your data. `hermes.service` enforces this
 too: `ProtectSystem=strict` makes the whole filesystem read-only for the
-service, with `shared/` the single exception it may write to.
+service, with `shared/` the single exception it may write to. That is also why
+nothing the root-run updater executes or trusts lives in `shared/`: its config
+is in `/etc/hermes`, and `update.sh` reads it as data instead of `source`-ing it.
 
 ---
 
@@ -258,7 +268,9 @@ systemctl list-timers hermes-update
 ```
 
 Usually GitHub is unreachable, or the repository is private and
-`shared/deploy.env` has no `GITHUB_TOKEN`.
+`/etc/hermes/deploy.env` has no `GITHUB_TOKEN`. If the journal says it is
+skipping a tag that failed before, that release was rolled back; delete
+`/var/lib/hermes-update/rejected-release` to let it try again.
 
 **A deploy rolled back.** The journal names the release it rejected. The Pi is
 still serving the previous version, so nothing is on fire: reproduce it locally

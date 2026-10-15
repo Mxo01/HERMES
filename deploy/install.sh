@@ -53,13 +53,22 @@ EOF
   chmod 600 "$ROOT/shared/hermes.env"
 fi
 
-if [[ ! -f "$ROOT/shared/deploy.env" ]]; then
-  cat > "$ROOT/shared/deploy.env" <<EOF
+# The updater's config is root's, not the service's: update.sh runs as root,
+# and shared/ is writable by the web process. Older installs kept it there.
+mkdir -p /etc/hermes
+chmod 755 /etc/hermes
+if [[ ! -f /etc/hermes/deploy.env && -f "$ROOT/shared/deploy.env" ]]; then
+  echo "==> Moving deploy.env out of shared/"
+  mv "$ROOT/shared/deploy.env" /etc/hermes/deploy.env
+fi
+if [[ ! -f /etc/hermes/deploy.env ]]; then
+  cat > /etc/hermes/deploy.env <<EOF
 # Where releases come from. Add GITHUB_TOKEN=... if the repository is private.
 REPO=$REPO
 EOF
-  chmod 600 "$ROOT/shared/deploy.env"
 fi
+chown root:root /etc/hermes/deploy.env
+chmod 600 /etc/hermes/deploy.env
 
 echo "==> Creating the Python environment"
 [[ -d "$ROOT/venv" ]] || python3 -m venv "$ROOT/venv"
@@ -75,6 +84,8 @@ install -m 644 "$here/hermes-update.timer" /etc/systemd/system/hermes-update.tim
 systemctl daemon-reload
 
 chown -R "$SERVICE_USER:$SERVICE_USER" "$ROOT"
+# Root runs bin/update.sh, so only root may change it.
+chown -R root:root "$ROOT/bin"
 
 echo "==> Fetching the first release"
 "$ROOT/bin/update.sh"

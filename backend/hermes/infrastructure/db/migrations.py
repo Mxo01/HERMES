@@ -1,6 +1,6 @@
 import sqlite3
 
-SCHEMA_VERSION: int = 5
+SCHEMA_VERSION: int = 6
 
 MIGRATIONS: dict[int, str] = {
     1: '''
@@ -158,6 +158,13 @@ MIGRATIONS: dict[int, str] = {
 
         CREATE INDEX IF NOT EXISTS idx_hourly_lookup
             ON hourly_aggregates (domain, room, metric, hour);
+    ''',
+    # Outdoor air quality is the European AQI, not the MQ-135's raw reading:
+    # move it off the shared `aq` id so nothing compares the two any more.
+    # No BEGIN/COMMIT here: apply_migrations owns the transaction.
+    6: '''
+        UPDATE readings SET metric = 'aqi' WHERE room = 'outside' AND metric = 'aq';
+        UPDATE hourly_aggregates SET metric = 'aqi' WHERE room = 'outside' AND metric = 'aq';
     ''',
 }
 

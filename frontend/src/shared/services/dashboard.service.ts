@@ -18,16 +18,25 @@ import type {
   Status,
 } from '@/shared/models/types'
 import { useResource, type Resource } from '@/hooks/useResource'
-import { useSocketEvent } from '@/hooks/useSocketEvent'
+import { useSocketEvent, useSocketReconnect } from '@/hooks/useSocketEvent'
 
 const METRIC_KEYS: Metric[] = ['gas', 'temperature', 'humidity', 'aq']
+
+/**
+ * The charts are hourly and no socket event carries an hour bucket, so they
+ * are polled: often enough that the newest bucket and the window's right edge
+ * stay current on a dashboard left open all day, rarely enough for a Pi Zero.
+ */
+const HOURLY_POLL_MS = 5 * 60_000
 
 export function useMeta(): Resource<Meta> {
   return useResource((signal) => api.meta(signal), [])
 }
 
 export function useNodes(): Resource<NodeInfo[]> {
-  return useResource((signal) => api.nodes(signal), [], { pollMs: 30_000 })
+  const resource = useResource((signal) => api.nodes(signal), [], { pollMs: 30_000 })
+  useSocketReconnect(resource.reload)
+  return resource
 }
 
 /**
@@ -35,8 +44,9 @@ export function useNodes(): Resource<NodeInfo[]> {
  * by `sensor_update` events — so the hero number moves the instant a node posts.
  */
 export function useLiveStatus(): { status: Status; loading: boolean; error: Error | undefined } {
-  const { data, loading, error } = useResource((signal) => api.status(signal), [])
+  const { data, loading, error, reload } = useResource((signal) => api.status(signal), [])
   const [status, setStatus] = useState<Status>({})
+  useSocketReconnect(reload)
 
   useEffect(() => {
     if (!data) return
@@ -75,10 +85,19 @@ export function useLiveStatus(): { status: Status; loading: boolean; error: Erro
 }
 
 export function useHourly(metric: Metric, hours: number, room?: Room): Resource<HourlyPoint[]> {
-  return useResource((signal) => api.hourly({ metric, hours, room }, signal), [metric, hours, room])
+  const resource = useResource(
+    (signal) => api.hourly({ metric, hours, room }, signal),
+    [metric, hours, room],
+    { pollMs: HOURLY_POLL_MS },
+  )
+  useSocketReconnect(resource.reload)
+  return resource
 }
 
-/** The alarm log, refreshed whenever the server opens or closes an alarm. */
+/**
+ * The alarm log, refreshed whenever the server opens or closes an alarm, and
+ * after a reconnect, since any such event sent while offline was missed.
+ */
 export function useAlarms(days = 14, room?: Room): Resource<Alarm[]> {
   const resource = useResource((signal) => api.alarms({ days, room }, signal), [days, room])
   const { reload } = resource
@@ -86,6 +105,7 @@ export function useAlarms(days = 14, room?: Room): Resource<Alarm[]> {
   const onChange = useCallback(() => reload(), [reload])
   useSocketEvent('alarm_opened', onChange)
   useSocketEvent('alarm_closed', onChange)
+  useSocketReconnect(onChange)
 
   return resource
 }

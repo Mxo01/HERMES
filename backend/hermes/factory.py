@@ -78,6 +78,15 @@ def _build_scheduler(services: Services, settings: Settings) -> JobScheduler:
             run_on_start=False,
         )
     )
+    if settings.telegram.enabled:
+        scheduler.add(
+            PeriodicJob(
+                name='notifications',
+                interval_seconds=settings.alarms.notify_interval_seconds,
+                run=lambda: {'sent': services.alarms.dispatch_pending()},
+                quiet=True,
+            )
+        )
     if services.weather.enabled:
         scheduler.add(
             PeriodicJob(
