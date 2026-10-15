@@ -85,9 +85,10 @@ first, not in scattered conditionals.
 `app.py`/`wsgi.py` → `factory.create_app()` builds the Flask app, runs
 `services.database.migrate()` (versioned, automatic, no manual migration
 step), registers the API blueprints and the SPA static handler, and starts the
-`JobScheduler` (`infrastructure/jobs/scheduler.py`) with four daemon-thread
+`JobScheduler` (`infrastructure/jobs/scheduler.py`) with up to five daemon-thread
 jobs: `downsampling` (hourly rollup, see retention below), `node-watchdog`
-(per-minute liveness check), `weather-sync`, `weather-backfill`. Each job
+(per-minute liveness check), `notifications` (Telegram dispatch, only when
+configured), `weather-sync`, `weather-backfill`. Each job
 swallows its own exceptions so one failing job can't kill the others or the
 web server — preserve that when touching `scheduler.py` or adding a job.
 

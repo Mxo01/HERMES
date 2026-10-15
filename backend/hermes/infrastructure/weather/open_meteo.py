@@ -55,7 +55,7 @@ class OpenMeteoWeatherProvider:
             observed_at=observed_at,
             temperature=_as_float(current.get('temperature_2m')),
             humidity=_as_float(current.get('relative_humidity_2m')),
-            aq=_as_float(aqi),
+            aqi=_as_float(aqi),
         )
 
     def history(self, days: int) -> list[WeatherObservation]:
@@ -98,7 +98,7 @@ class OpenMeteoWeatherProvider:
                     observed_at=observed_at,
                     temperature=_as_float(_at(temperatures, index)),
                     humidity=_as_float(_at(humidities, index)),
-                    aq=_as_float(aq_by_time.get(stamp)),
+                    aqi=_as_float(aq_by_time.get(stamp)),
                 )
             )
         return observations

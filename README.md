@@ -193,7 +193,7 @@ being spammed.
 | Gas / smoke | `gas` > 150 | High | Yes |
 | Air quality | `aq` > 300 | Medium | No |
 | Humidity | `humidity` > 70 | Medium | No |
-| Node offline | no reading for 5 min | Low | No |
+| Node offline | no reading for 5 min | Low | Only the gas board |
 
 All thresholds are configurable. A database index enforces the core invariant —
 at most one open alarm per room, kind, metric and board — and the repository
@@ -232,6 +232,11 @@ the same queries, charts, downsampling and history as the real nodes, and no
 code anywhere has a special case for it. The only thing `outside` cannot do is
 accept a POST — it is not a room a node may report for.
 
+Outdoor temperature and humidity share their metric ids with the rooms, so they
+compare directly. Outdoor air quality does not: Open-Meteo reports the European
+AQI, a different scale from the MQ-135's raw reading, so it is stored as its own
+metric, `aqi`, and never plotted against the indoor `aq`.
+
 A job refreshes the current conditions every 15 minutes and backfills hourly
 history every 6 hours. Any failure degrades to "no outdoor data" and the
 dashboard hides the comparison; it is never a reason to fail a request.
@@ -253,24 +258,35 @@ updating between fetches, and the header shows `SOCKET OFFLINE`.
 
 ### 4.7 Notifications
 
-When a gas alarm opens, Telegram receives the room, the value, the threshold,
-and any temperature and humidity read at the same moment. Rate limiting lives in
-the notifier rather than the alarm engine: the engine already guarantees one
-event per breach, so this is a second guard against a flapping sensor.
+When a gas alarm opens, Telegram receives the room, the peak value and the
+threshold. The same goes for the gas board itself falling silent: until it
+reports again no gas alarm can open at all, which is worth a message rather than
+a quiet line on a dashboard nobody is looking at.
+
+Sending happens in the `notifications` job, not in the request that opened the
+alarm. A Telegram call can take tens of seconds, and a node's POST should not
+wait on it. More importantly, an alarm stays "owed" until a message actually goes
+out: a send that fails during an internet outage is retried every few seconds
+while the alarm is open, instead of being lost. Rate limiting lives in the
+notifier: the engine already guarantees one event per breach, so the cooldown
+is a second guard against a flapping sensor, and it delays a message rather than
+dropping it.
 
 With no bot token configured the notifier is a no-op and everything else behaves
 identically.
 
 ### 4.8 Background jobs
 
-Four jobs run in daemon threads inside the single server process. Each owns its
+Five jobs run in daemon threads inside the single server process. Each owns its
 thread and swallows its own errors, so a failing job never takes down the others
-or the web server.
+or the web server. An interval of 0 or less disables a job rather than spinning
+it.
 
 | Job | Interval | Purpose |
 | :--- | :--- | :--- |
 | `downsampling` | 1 hour | Roll old raw samples into hourly averages |
 | `node-watchdog` | 1 minute | Raise alarms for silent boards |
+| `notifications` | 5 seconds | Send owed Telegram alerts (only when Telegram is configured) |
 | `weather-sync` | 15 minutes | Fetch current outdoor conditions |
 | `weather-backfill` | 6 hours | Fill in outdoor hourly history |
 

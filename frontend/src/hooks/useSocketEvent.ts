@@ -23,6 +23,28 @@ export function useSocketConnection(): boolean {
 }
 
 /**
+ * Run `handler` every time the shared connection comes back after a drop, but
+ * not on the first connect. Whatever the server emitted while the socket was
+ * down is gone for good, so state built from those events has to be refetched.
+ */
+export function useSocketReconnect(handler: () => void): void {
+  const latest = useRef(handler)
+  latest.current = handler
+
+  useEffect(() => {
+    let connectedBefore = socket.connected
+    const onConnect = () => {
+      if (connectedBefore) latest.current()
+      connectedBefore = true
+    }
+    socket.on('connect', onConnect)
+    return () => {
+      socket.off('connect', onConnect)
+    }
+  }, [])
+}
+
+/**
  * Subscribe to one server event. The handler is kept in a ref so callers can
  * pass an inline closure without re-subscribing on every render.
  */

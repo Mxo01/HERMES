@@ -125,3 +125,29 @@ def test_alarms_are_counted_per_day(services: Services, clock: FrozenClock) -> N
 
     counts = services.alarms.counts_by_day(clock.now().date(), clock.now().date())
     assert counts[clock.now().date()] == 1
+
+
+def test_an_open_alarm_older_than_the_window_is_still_listed(
+    services: Services, clock: FrozenClock
+) -> None:
+    """The log may drop old history, never an alarm that is still happening."""
+    _gas(services, 180)
+    clock.advance(days=20)
+    _gas(services, 190)  # still breaching: same alarm, still open
+
+    alarms = services.alarms.recent(days=14)
+    assert len(alarms) == 1
+    assert alarms[0].active
+
+
+def test_open_alarms_survive_the_row_limit(services: Services, clock: FrozenClock) -> None:
+    _gas(services, 180)  # opened first, stays open
+    for _ in range(3):
+        clock.advance(minutes=5)
+        services.ingestion.ingest({'room': 'bedroom', 'sensor': 'mq135', 'temperature': 20, 'humidity': 82, 'aq': 40})
+        clock.advance(minutes=5)
+        services.ingestion.ingest({'room': 'bedroom', 'sensor': 'mq135', 'temperature': 20, 'humidity': 50, 'aq': 40})
+
+    alarms = services.alarms.recent(limit=2)
+    assert any(alarm.kind is AlarmKind.GAS and alarm.active for alarm in alarms)
+    assert [alarm.started_at for alarm in alarms] == sorted((alarm.started_at for alarm in alarms), reverse=True)

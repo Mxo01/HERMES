@@ -11,6 +11,11 @@ GAS: str = 'gas'
 TEMPERATURE: str = 'temperature'
 HUMIDITY: str = 'humidity'
 AIR_QUALITY: str = 'aq'
+#: The European Air Quality Index reported for outdoors. Deliberately not
+#: ``aq``: that is the MQ-135's raw 0–1023 reading, a different quantity on a
+#: different scale, and storing both under one id made the dashboard subtract
+#: one from the other as if they were comparable.
+OUTDOOR_AQI: str = 'aqi'
 
 KITCHEN: str = 'kitchen'
 BEDROOM: str = 'bedroom'
@@ -38,6 +43,7 @@ METRICS: dict[str, MetricSpec] = {
     TEMPERATURE: MetricSpec(TEMPERATURE, 'Temperature', '°C', 1, -40.0, 60.0, 5.0, 35.0),
     HUMIDITY: MetricSpec(HUMIDITY, 'Humidity', '%', 0, 0.0, 100.0, 10.0, 95.0),
     AIR_QUALITY: MetricSpec(AIR_QUALITY, 'Air quality', '', 0, 0.0, 1023.0, 0.0, 500.0),
+    OUTDOOR_AQI: MetricSpec(OUTDOOR_AQI, 'Air quality index (EU)', '', 0, 0.0, 500.0, 0.0, 100.0),
 }
 
 

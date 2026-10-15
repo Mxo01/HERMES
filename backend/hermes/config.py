@@ -39,6 +39,9 @@ class AlarmSettings:
     node_delayed_after_seconds: int
     node_offline_after_seconds: int
     watchdog_interval_seconds: int
+    #: How often open alarms that still owe a notification are (re)sent. It is
+    #: the worst-case delay on a gas alert, so it stays in seconds.
+    notify_interval_seconds: int = 5
 
 
 #: Where a release places the compiled dashboard, relative to the backend.
@@ -108,6 +111,7 @@ class Settings:
                 node_delayed_after_seconds=_int(source, 'NODE_DELAYED_AFTER', 90),
                 node_offline_after_seconds=_int(source, 'NODE_OFFLINE_AFTER', 300),
                 watchdog_interval_seconds=_int(source, 'NODE_WATCHDOG_INTERVAL', 60),
+                notify_interval_seconds=_int(source, 'NOTIFY_INTERVAL', 5),
             ),
             weather=WeatherSettings(
                 latitude=_float(source, 'HERMES_LATITUDE', PISA_LATITUDE),

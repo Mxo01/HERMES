@@ -4,10 +4,11 @@ import { LayoutDesktop } from '@/shared/components/shell/LayoutDesktop'
 import { LayoutMobile } from '@/shared/components/shell/LayoutMobile'
 import { useAlarms, useLiveStatus, useMeta, useNodes } from '@/shared/services/dashboard.service'
 import { useClock, useMediaQuery } from '@/hooks/useEnvironment'
+import { usePersistentFlag } from '@/hooks/usePersistentFlag'
+import { useRollingRange } from '@/hooks/useRollingRange'
 import { useRoute } from '@/hooks/useRoute'
 import { useSocketConnection } from '@/hooks/useSocketEvent'
 import { presetRange } from '@/shared/utils/dates'
-import type { DateRange } from '@/shared/models/dates.model'
 import {
   ACCENT,
   BEDROOM,
@@ -41,24 +42,15 @@ export default function App() {
   const [view, setView] = useRoute()
   const [room, setRoom] = useState<Room>(KITCHEN)
   const [metric, setMetric] = useState<EnvMetric>('temperature')
-  const [range, setRange] = useState<DateRange>(() => presetRange(14))
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => localStorage.getItem(SIDEBAR_KEY) === '1',
-  )
-  const onToggleSidebar = () => {
-    setSidebarCollapsed((value) => {
-      const next = !value
-      localStorage.setItem(SIDEBAR_KEY, next ? '1' : '0')
-      return next
-    })
-  }
+  const now = useClock()
+  const [range, setRange] = useRollingRange(() => presetRange(14), now)
+  const [sidebarCollapsed, onToggleSidebar] = usePersistentFlag(SIDEBAR_KEY)
 
   const meta = useMeta()
   const nodes = useNodes()
   const alarmLog = useAlarms(ALARM_WINDOW_DAYS)
   const { status, loading: statusLoading, error: statusError } = useLiveStatus()
   const connected = useSocketConnection()
-  const now = useClock()
 
   const accent = ACCENT[metric]
   const alarms = alarmLog.data ?? NO_ALARMS

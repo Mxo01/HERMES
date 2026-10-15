@@ -51,12 +51,29 @@ class AlarmService:
         self._clock = clock
         self._publisher = publisher
         self._notifier = notifier
+        #: Metrics whose breaches reach the notifier. A board carrying one of
+        #: them going silent is itself worth a notification: until it reports
+        #: again, those breaches cannot be detected at all.
+        self._notifying_metrics = frozenset(rule.metric for rule in rules if rule.notify)
 
     # ------------------------------------------------------------------ read
 
     def recent(self, days: int = 14, room: str | None = None, limit: int = 100) -> list[Alarm]:
+        """Alarms started in the last ``days`` days, plus every alarm still open.
+
+        An open alarm is the one thing the log must never hide: a board that
+        went quiet three weeks ago, or a breach pushed past ``limit`` by newer
+        rows, is still happening now.
+        """
         since = self._clock.now() - datetime.timedelta(days=days)
-        return self._repository.list_since(since, room, limit)
+        logged = self._repository.list_since(since, room, limit)
+        shown = {alarm.id for alarm in logged}
+        still_open = [
+            alarm
+            for alarm in self._repository.list_active()
+            if alarm.id not in shown and (room is None or alarm.room == room)
+        ]
+        return sorted([*logged, *still_open], key=lambda alarm: alarm.started_at, reverse=True)
 
     def count(self, days: int = 7) -> int:
         return self._repository.count_since(self._clock.now() - datetime.timedelta(days=days))
@@ -103,8 +120,6 @@ class AlarmService:
                 started_at=reading.recorded_at,
             )
             self._announce('alarm_opened', alarm)
-            if rule.notify:
-                self._send_notification(rule, alarm, reading, value)
             return alarm
 
         if active is not None and value <= rule.threshold * rule.release:
@@ -138,6 +153,31 @@ class AlarmService:
         self._announce('alarm_closed', active)
         return active
 
+    def dispatch_pending(self) -> int:
+        """Notify every open alarm that still owes a notification; returns how many went out.
+
+        Runs from a background job rather than inside ingestion. A Telegram
+        call can take tens of seconds and must not hold up a node's POST, and
+        a send that fails, or that the notifier's cooldown holds back, is just
+        tried again on the next pass while the alarm stays open. Sending once
+        at open time lost the only warning of a fire to a brief outage.
+        """
+        if self._notifier is None or not self._notifier.enabled():
+            return 0
+
+        sent = 0
+        for alarm in self._repository.list_active():
+            if alarm.notified:
+                continue
+            message = self._notification_for(alarm)
+            if message is None:
+                continue
+            title, body = message
+            if self._notifier.notify(title=title, body=body, key=f'{alarm.kind}:{alarm.room}:{alarm.sensor}'):
+                self._repository.mark_notified(alarm.id)
+                sent += 1
+        return sent
+
     # ---------------------------------------------------------------- helpers
 
     def _format(self, rule: AlarmRule, value: float) -> str:
@@ -159,20 +199,34 @@ class AlarmService:
             },
         )
 
-    def _send_notification(
-        self, rule: AlarmRule, alarm: Alarm, reading: SensorReading, value: float
-    ) -> None:
-        if self._notifier is None or not self._notifier.enabled():
-            return
-        lines = [f'{rule.label}: {self._format(rule, value)} (threshold {self._format(rule, rule.threshold)})']
-        for extra in (catalog.TEMPERATURE, catalog.HUMIDITY):
-            other = reading.get(extra)
-            if other is not None:
-                spec = catalog.metric(extra)
-                lines.append(f'{spec.label}: {other:.{spec.decimals}f}{spec.unit}')
-        if self._notifier.notify(
-            title=f'⚠️ {rule.label.upper()} — {reading.room}',
-            body='\n'.join(lines),
-            key=f'{alarm.kind}:{alarm.room}',
-        ):
-            self._repository.mark_notified(alarm.id)
+    def _rule_for(self, alarm: Alarm) -> AlarmRule | None:
+        return next(
+            (rule for rule in self._rules if rule.kind is alarm.kind and rule.metric == alarm.metric),
+            None,
+        )
+
+    def _notification_for(self, alarm: Alarm) -> tuple[str, str] | None:
+        """Title and body for an alarm that warrants a notification, else ``None``."""
+        if alarm.kind is AlarmKind.NODE:
+            sensor = catalog.SENSORS.get(alarm.sensor or '')
+            node = catalog.node_for(alarm.room, alarm.sensor or '')
+            watched = [m for m in sensor.metrics if m in self._notifying_metrics] if sensor else []
+            if not watched or node is None:
+                return None
+            # The duration, not a clock time: the server only knows UTC, and a
+            # "since 19:10" two hours off from the reader's clock is worse than none.
+            minutes = max(1, alarm.duration_seconds(self._clock.now()) // 60)
+            labels = ', '.join(catalog.metric(m).label.lower() for m in watched)
+            return (
+                f'⚠️ NODE OFFLINE — {alarm.room}',
+                f'{node.label} has been silent for {minutes} min: {labels} alerts are off until it reports again.',
+            )
+
+        rule = self._rule_for(alarm)
+        if rule is None or not rule.notify:
+            return None
+        peak = alarm.peak_value if alarm.peak_value is not None else rule.threshold
+        return (
+            f'⚠️ {rule.label.upper()} — {alarm.room}',
+            f'{rule.label}: peak {self._format(rule, peak)} (threshold {self._format(rule, rule.threshold)})',
+        )

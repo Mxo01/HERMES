@@ -40,12 +40,12 @@ PROFILE: dict[str, dict[str, tuple[float, float, float]]] = {
     'outside': {
         'temperature': (14.2, 5.4, 0.8),
         'humidity': (71.0, 11.0, 2.5),
-        'aq': (38.0, 9.0, 3.0),
+        'aqi': (38.0, 9.0, 3.0),
     },
 }
 
 #: Metrics peak at different times of day.
-PHASE: dict[str, float] = {'temperature': 15.0, 'humidity': 4.0, 'aq': 20.0, 'gas': 19.0}
+PHASE: dict[str, float] = {'temperature': 15.0, 'humidity': 4.0, 'aq': 20.0, 'aqi': 20.0, 'gas': 19.0}
 
 
 def value_at(metric: str, hour_of_day: float, day: int, spec: tuple[float, float, float]) -> float:
