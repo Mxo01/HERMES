@@ -22,25 +22,33 @@ readings, raises alarms, notifies over Telegram and serves a live dashboard.
 
 | Component | Quantity | Usage / Notes |
 | :--- | :--- | :--- |
-| **Raspberry Pi Zero** | 1× | Server, SQLite database, dashboard, Telegram bot |
+| **Raspberry Pi Zero 2 W** (or Zero W) | 1× | Server, SQLite database, dashboard, Telegram bot — a plain Zero has no Wi-Fi |
 | **NodeMCU ESP8266 (Type-C)** | 3× | Sensor nodes (Kitchen Gas, Kitchen Environment, Bedroom) |
 | **DHT22 PCB Module** | 2× | Temperature and humidity |
 | **MQ-2 PCB Module** | 1× | Gas leak / smoke (Kitchen Node A) |
 | **MQ-135 PCB Module** | 2× | Air quality / CO2 / VOC (Kitchen Node B & Bedroom) |
 | **Dupont Jumpers F-F (20cm)** | 1× (pack of 40) | Female-to-female jumper wires |
+| **Dupont Jumpers M-M and M-F** | 1× pack each | For the breadboard: its holes need a male end |
+| **Resistors 10 kΩ + 20 kΩ** | 3 pairs | One divider per MQ module's `AO` (see Wiring) |
+| **Mini breadboard** | 3× | Holds the divider, one per node |
+
+Power supplies, microSD and USB cables are listed with the reasons for each in
+[deploy/BRINGUP.md](deploy/BRINGUP.md), Phase 0.
 
 ---
 
 ## 2. Wiring
 
-Each NodeMCU is powered over USB Type-C (5V). No soldering required.
+Each NodeMCU is powered over USB Type-C (5V). No soldering required: the
+divider on each MQ module's `AO` sits on a mini breadboard.
 
 ### 🚨 Kitchen Node A — Gas / smoke safety (NodeMCU #1)
 
 * **MQ-2 (gas / smoke)**
   * `VCC` ──► **VIN** / 5V
   * `GND` ──► **GND**
-  * `AO` ──► **A0**
+  * `AO` ──► 10 kΩ ──► **A0**
+  * **A0** ──► 20 kΩ ──► **GND**
 
 ### 🍳 Kitchen Node B — Kitchen environment (NodeMCU #2)
 
@@ -51,7 +59,8 @@ Each NodeMCU is powered over USB Type-C (5V). No soldering required.
 * **MQ-135 (air quality)**
   * `VCC` ──► **VIN** / 5V
   * `GND` ──► **GND**
-  * `AO` ──► **A0**
+  * `AO` ──► 10 kΩ ──► **A0**
+  * **A0** ──► 20 kΩ ──► **GND**
 
 ### 🛏️ Bedroom Node — Room environment (NodeMCU #3)
 
@@ -67,8 +76,10 @@ Identical to Kitchen Node B.
 >
 > **The MQ modules output up to 5V on `AO`, but `A0` tolerates 3.3V.** Powered
 > from VIN as shown, a saturated sensor can push the analog input past its
-> rating — precisely in the range where a gas alarm lives. A resistor divider
-> on `AO` keeps the reading honest and the ADC intact.
+> rating — precisely in the range where a gas alarm lives. The 10 kΩ / 20 kΩ
+> divider shown above scales 5V down to 3.3V, keeping the reading honest and
+> the ADC intact. It also scales every reading to two thirds, one more reason
+> the gas thresholds get calibrated on real data (BRINGUP Phase 8).
 
 ---
 
