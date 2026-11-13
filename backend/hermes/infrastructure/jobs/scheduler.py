@@ -33,6 +33,15 @@ class JobScheduler:
         self._stop = threading.Event()
         self._started = False
 
+    @property
+    def jobs(self) -> tuple[PeriodicJob, ...]:
+        """The jobs that are enabled, in registration order."""
+        return tuple(self._jobs)
+
+    @property
+    def started(self) -> bool:
+        return self._started
+
     def add(self, job: PeriodicJob) -> None:
         # `_stop.wait(0)` returns at once, so a zero or negative interval (an
         # env var set to 0 meaning "off", or a typo) would spin the thread and

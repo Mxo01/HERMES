@@ -339,7 +339,7 @@ backend/
 │   │   ├── weather/           Open-Meteo + fixed location
 │   │   └── jobs/              Periodic job scheduler
 │   └── api/                   Blueprints, schemas, auth, error handlers
-├── tests/                     59 tests: domain, API, deployment surface
+├── tests/                     151 tests: domain, API, adapters, deployment surface
 └── scripts/seed_demo.py       21 days of plausible data, for development
 ```
 
@@ -426,7 +426,7 @@ anything.
 
 ```text
 push to main
-  → CI: backend tests · mypy · frontend build · firmware compiled for all 3 nodes
+  → CI: backend tests (95% branch-coverage gate) · mypy · frontend build · firmware compiled for all 3 nodes
   → release tarball published
   → the Pi's timer notices within ~5 minutes
   → downloads, verifies the checksum, unpacks beside the current release

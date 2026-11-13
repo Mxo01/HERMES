@@ -140,12 +140,12 @@ check: test typecheck lint
 	@echo "==> All checks passed"
 
 test: $(VENV_STAMP)
-	@echo "==> Backend tests"
-	@cd $(BACKEND) && ../$(PYTHON) -m pytest
+	@echo "==> Backend tests (coverage gate: 95% of hermes/)"
+	@cd $(BACKEND) && ../$(PYTHON) -m pytest --cov=hermes --cov-report=term-missing --cov-report=xml
 
 typecheck: setup
 	@echo "==> Backend types"
-	@cd $(BACKEND) && ../$(PYTHON) -m mypy hermes app.py wsgi.py
+	@cd $(BACKEND) && ../$(PYTHON) -m mypy hermes tests app.py wsgi.py
 	@echo "==> Dashboard types"
 	@cd $(FRONTEND) && npm run typecheck --silent
 
