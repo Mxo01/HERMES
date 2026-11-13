@@ -6,8 +6,9 @@ swapped (or faked in tests) without touching business rules.
 """
 
 import datetime
-from typing import Any, Protocol
+from typing import Protocol
 
+from ..json_types import JsonObject
 from .models import (
     Alarm,
     AlarmKind,
@@ -114,7 +115,7 @@ class AlarmRepository(Protocol):
 class EventPublisher(Protocol):
     """Pushes realtime events to connected dashboards."""
 
-    def publish(self, event: str, payload: dict[str, Any]) -> None: ...
+    def publish(self, event: str, payload: JsonObject) -> None: ...
 
 
 class Notifier(Protocol):

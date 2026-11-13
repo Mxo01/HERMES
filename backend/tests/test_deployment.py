@@ -2,7 +2,7 @@
 
 import dataclasses
 from pathlib import Path
-from typing import Any, Iterator
+from collections.abc import Iterator
 
 import pytest
 from flask import Flask
@@ -20,12 +20,12 @@ READING = {'room': 'kitchen', 'sensor': 'mq2', 'gas': 38}
 
 
 def _client(settings: Settings, clock: FrozenClock, publisher: RecordingPublisher) -> FlaskClient:
-    services: Services = build_services(settings, publisher=publisher, clock=clock)
-    services.database.migrate()
+    testSubject: Services = build_services(settings, publisher=publisher, clock=clock)
+    testSubject.database.migrate()
 
     app = Flask(__name__)
     app.config['TESTING'] = True
-    register_api(app, services)
+    register_api(app, testSubject)
     if settings.frontend_dist:
         register_spa(app, Path(settings.frontend_dist))
     return app.test_client()
@@ -73,7 +73,7 @@ def test_ingestion_stays_open_when_no_token_is_configured(client: FlaskClient) -
 
 @pytest.fixture
 def dashboard(
-    settings: Settings, clock: FrozenClock, publisher: RecordingPublisher, tmp_path: Any
+    settings: Settings, clock: FrozenClock, publisher: RecordingPublisher, tmp_path: Path
 ) -> Iterator[FlaskClient]:
     dist = tmp_path / 'dist'
     (dist / 'assets').mkdir(parents=True)
@@ -124,7 +124,7 @@ def test_a_relative_dist_path_is_resolved_against_the_working_directory(
     settings: Settings,
     clock: FrozenClock,
     publisher: RecordingPublisher,
-    tmp_path: Any,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Flask would otherwise resolve it inside the package and serve nothing."""

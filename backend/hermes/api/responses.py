@@ -1,22 +1,22 @@
 """One response envelope for the whole API, plus the error handlers."""
 
 import logging
-from typing import Any
 
 from flask import Flask, Response, jsonify
 from werkzeug.exceptions import HTTPException
 
 from ..domain.errors import DomainError, ValidationError
+from ..json_types import JsonObject
 
 logger = logging.getLogger(__name__)
 
 
-def success(data: Any, status_code: int = 200, **extra: Any) -> tuple[Response, int]:
+def success(data: object, status_code: int = 200, **extra: object) -> tuple[Response, int]:
     return jsonify({'status': 'success', 'data': data, **extra}), status_code
 
 
 def failure(message: str, status_code: int = 400, errors: dict[str, str] | None = None) -> tuple[Response, int]:
-    body: dict[str, Any] = {'status': 'error', 'message': message}
+    body: JsonObject = {'status': 'error', 'message': message}
     if errors:
         body['errors'] = errors
     return jsonify(body), status_code

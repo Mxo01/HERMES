@@ -1,7 +1,5 @@
 """The write path: a node posts, everything downstream reacts."""
 
-from typing import Any
-
 from .. import catalog
 from ..models import AlarmKind, SensorReading
 from ..ports import Clock, EventPublisher, ReadingRepository
@@ -25,7 +23,7 @@ class IngestionService:
         self._clock = clock
         self._publisher = publisher
 
-    def ingest(self, payload: Any) -> SensorReading:
+    def ingest(self, payload: object) -> SensorReading:
         """Validate, persist, broadcast and run the alarm rules over a payload.
 
         Raises :class:`~hermes.domain.errors.ValidationError` on a bad payload.

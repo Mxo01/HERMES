@@ -8,12 +8,12 @@ outdoor data is a nice-to-have, never a reason to fail a request.
 import datetime
 import logging
 import time
-from typing import Any
 
 import requests
 
 from ...domain.models import Coordinates, WeatherObservation
 from ...domain.ports import LocationProvider
+from ...json_types import JsonObject, as_object
 
 logger = logging.getLogger(__name__)
 
@@ -45,17 +45,17 @@ class OpenMeteoWeatherProvider:
         if forecast is None:
             return None
 
-        current = forecast.get('current') or {}
+        current = as_object(forecast.get('current')) or {}
         observed_at = _parse_time(current.get('time')) or datetime.datetime.now(datetime.UTC)
 
         air = self._get(AIR_QUALITY_URL, {'current': 'european_aqi', 'timezone': 'UTC'})
-        aqi = (air or {}).get('current', {}).get('european_aqi')
+        current_air = as_object((air or {}).get('current')) or {}
 
         return WeatherObservation(
             observed_at=observed_at,
             temperature=_as_float(current.get('temperature_2m')),
             humidity=_as_float(current.get('relative_humidity_2m')),
-            aqi=_as_float(aqi),
+            aqi=_as_float(current_air.get('european_aqi')),
         )
 
     def history(self, days: int) -> list[WeatherObservation]:
@@ -82,14 +82,16 @@ class OpenMeteoWeatherProvider:
         )
         aq_by_time = _index_hourly(air, 'european_aqi')
 
-        hourly = forecast.get('hourly') or {}
-        times: list[str] = hourly.get('time') or []
-        temperatures: list[Any] = hourly.get('temperature_2m') or []
-        humidities: list[Any] = hourly.get('relative_humidity_2m') or []
+        hourly = as_object(forecast.get('hourly')) or {}
+        times = _as_list(hourly.get('time'))
+        temperatures = _as_list(hourly.get('temperature_2m'))
+        humidities = _as_list(hourly.get('relative_humidity_2m'))
 
         now = datetime.datetime.now(datetime.UTC)
         observations: list[WeatherObservation] = []
         for index, stamp in enumerate(times):
+            if not isinstance(stamp, str):
+                continue
             observed_at = _parse_time(stamp)
             if observed_at is None or observed_at > now:
                 continue
@@ -105,7 +107,7 @@ class OpenMeteoWeatherProvider:
 
     # --------------------------------------------------------------- private
 
-    def _get(self, url: str, params: dict[str, str]) -> dict[str, Any] | None:
+    def _get(self, url: str, params: dict[str, str]) -> JsonObject | None:
         coordinates = self._location.resolve()
         if coordinates is None:
             return None
@@ -138,29 +140,36 @@ class OpenMeteoWeatherProvider:
                 time.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
                 continue
 
-            return payload if isinstance(payload, dict) else None
+            return as_object(payload)
 
         return None
 
 
-def _index_hourly(payload: dict[str, Any] | None, key: str) -> dict[str, Any]:
-    hourly = (payload or {}).get('hourly') or {}
-    times = hourly.get('time') or []
-    values = hourly.get(key) or []
-    return {stamp: _at(values, index) for index, stamp in enumerate(times)}
+def _index_hourly(payload: JsonObject | None, key: str) -> dict[str, object]:
+    hourly = as_object((payload or {}).get('hourly')) or {}
+    times = _as_list(hourly.get('time'))
+    values = _as_list(hourly.get(key))
+    return {
+        stamp: _at(values, index) for index, stamp in enumerate(times) if isinstance(stamp, str)
+    }
 
 
-def _at(values: list[Any], index: int) -> Any:
+def _as_list(value: object) -> list[object]:
+    """Open-Meteo answers with a list per hourly key, or null when a model has no data."""
+    return value if isinstance(value, list) else []
+
+
+def _at(values: list[object], index: int) -> object:
     return values[index] if index < len(values) else None
 
 
-def _as_float(value: Any) -> float | None:
+def _as_float(value: object) -> float | None:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return float(value)
     return None
 
 
-def _parse_time(value: Any) -> datetime.datetime | None:
+def _parse_time(value: object) -> datetime.datetime | None:
     if not isinstance(value, str):
         return None
     try:

@@ -2,20 +2,85 @@
 
 import datetime
 import sqlite3
+import threading
 from pathlib import Path
 
 from hermes.domain.models import WeatherObservation
 from hermes.infrastructure.db.migrations import MIGRATIONS, apply_migrations
 from hermes.infrastructure.jobs.scheduler import JobScheduler, PeriodicJob
 
+JOB_TIMEOUT_SECONDS = 5
+
 
 def test_a_job_with_no_positive_interval_is_disabled_not_spun() -> None:
-    scheduler = JobScheduler()
-    scheduler.add(PeriodicJob(name='off', interval_seconds=0, run=lambda: None))
-    scheduler.add(PeriodicJob(name='typo', interval_seconds=-5, run=lambda: None))
-    scheduler.add(PeriodicJob(name='on', interval_seconds=60, run=lambda: None))
+    testSubject = JobScheduler()
+    testSubject.add(PeriodicJob(name='off', interval_seconds=0, run=lambda: None))
+    testSubject.add(PeriodicJob(name='typo', interval_seconds=-5, run=lambda: None))
+    testSubject.add(PeriodicJob(name='on', interval_seconds=60, run=lambda: None))
 
-    assert [job.name for job in scheduler._jobs] == ['on']
+    assert [job.name for job in testSubject.jobs] == ['on']
+
+
+def test_starting_runs_a_job_once_before_its_first_interval() -> None:
+    ran = threading.Event()
+    testSubject = JobScheduler()
+    testSubject.add(PeriodicJob(name='once', interval_seconds=60, run=ran.set))
+
+    testSubject.start()
+    try:
+        assert ran.wait(JOB_TIMEOUT_SECONDS)
+    finally:
+        testSubject.stop()
+
+    assert testSubject.started is True
+
+
+def test_a_job_can_be_told_to_wait_for_its_first_interval() -> None:
+    calls: list[int] = []
+    testSubject = JobScheduler()
+    testSubject.add(
+        PeriodicJob(name='later', interval_seconds=60, run=lambda: calls.append(1), run_on_start=False)
+    )
+
+    testSubject.start()
+    testSubject.stop()
+
+    assert calls == []
+
+
+def test_a_failing_job_does_not_kill_its_thread() -> None:
+    """The Pi's downsampling must survive a bad night, not stop at the first error."""
+    calls: list[int] = []
+    recovered = threading.Event()
+
+    def flaky() -> None:
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError('database is locked')
+        recovered.set()
+
+    testSubject = JobScheduler()
+    testSubject.add(PeriodicJob(name='flaky', interval_seconds=1, run=flaky))
+
+    testSubject.start()
+    try:
+        assert recovered.wait(JOB_TIMEOUT_SECONDS)
+    finally:
+        testSubject.stop()
+
+    assert len(calls) == 2
+
+
+def test_starting_twice_does_not_double_the_jobs() -> None:
+    calls: list[int] = []
+    testSubject = JobScheduler()
+    testSubject.add(PeriodicJob(name='once', interval_seconds=60, run=lambda: calls.append(1)))
+
+    testSubject.start()
+    testSubject.start()
+    testSubject.stop()
+
+    assert len(calls) == 1
 
 
 def test_outdoor_air_quality_is_its_own_metric() -> None:

@@ -7,14 +7,18 @@ downsampling writer run while the dashboard reads.
 
 import datetime
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
+from typing import TypeAlias, cast
 
 from .migrations import apply_migrations
 
 #: SQLite stores our timestamps in this (naive, UTC) format.
 SQL_TIMESTAMP: str = '%Y-%m-%d %H:%M:%S'
 SQL_HOUR: str = '%Y-%m-%d %H:00:00'
+
+#: A value that can be bound to a ``?`` placeholder.
+SqlValue: TypeAlias = str | int | float | bytes | None
 
 
 def to_sql(value: datetime.datetime) -> str:
@@ -58,6 +62,22 @@ def from_sql(value: str | None) -> datetime.datetime | None:
         except ValueError:
             return None
     return parsed.replace(tzinfo=datetime.UTC)
+
+
+#: `sqlite3.Cursor.fetchall()` is annotated `list[Any]`, because typeshed cannot
+#: know that `Database.connect` installs `sqlite3.Row` as the row factory. These
+#: two helpers are the only place that knows, so every repository read keeps a
+#: precise row type instead of an `Any` at each call site.
+def fetch_rows(
+    conn: sqlite3.Connection, sql: str, params: Sequence[SqlValue] = ()
+) -> list[sqlite3.Row]:
+    return cast('list[sqlite3.Row]', conn.execute(sql, params).fetchall())
+
+
+def fetch_row(
+    conn: sqlite3.Connection, sql: str, params: Sequence[SqlValue] = ()
+) -> sqlite3.Row | None:
+    return cast('sqlite3.Row | None', conn.execute(sql, params).fetchone())
 
 
 class Database:

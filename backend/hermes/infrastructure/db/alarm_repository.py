@@ -3,10 +3,9 @@
 import datetime
 import logging
 import sqlite3
-from typing import Any
 
 from ...domain.models import Alarm, AlarmKind, Severity
-from .database import Database, from_sql, local_days, to_sql
+from .database import Database, SqlValue, fetch_row, fetch_rows, from_sql, local_days, to_sql
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +72,8 @@ class SqliteAlarmRepository:
                     (room, sensor, metric, str(kind), str(severity), threshold, value, detail, to_sql(started_at)),
                 )
             except sqlite3.IntegrityError:
-                existing = conn.execute(
+                existing = fetch_row(
+                    conn,
                     f'''
                     SELECT {_COLUMNS} FROM alarms
                     WHERE room = ? AND kind = ? AND IFNULL(metric, '') = ?
@@ -81,16 +81,18 @@ class SqliteAlarmRepository:
                     ORDER BY started_at DESC LIMIT 1
                     ''',
                     (room, str(kind), metric or '', sensor or ''),
-                ).fetchone()
+                )
                 if existing is None:
                     raise
                 logger.debug('Alarm already open for %s/%s/%s, reusing it', room, kind, metric)
                 return _to_alarm(existing)
 
-            row = conn.execute(
-                f'SELECT {_COLUMNS} FROM alarms WHERE id = ?', (cursor.lastrowid,)
-            ).fetchone()
-        return _to_alarm(row)
+            created = fetch_row(
+                conn, f'SELECT {_COLUMNS} FROM alarms WHERE id = ?', (cursor.lastrowid,)
+            )
+        if created is None:  # pragma: no cover - the row was inserted one line above
+            raise RuntimeError('alarm row disappeared between insert and read-back')
+        return _to_alarm(created)
 
     def close(self, alarm_id: int, ended_at: datetime.datetime, detail: str | None = None) -> None:
         with self._db.connect() as conn:
@@ -122,13 +124,14 @@ class SqliteAlarmRepository:
         self, room: str, kind: AlarmKind, metric: str | None, sensor: str | None = None
     ) -> Alarm | None:
         clause = ''
-        params: list[Any] = [room, str(kind), metric or '']
+        params: list[SqlValue] = [room, str(kind), metric or '']
         if sensor is not None:
             clause = " AND IFNULL(sensor, '') = ?"
             params.append(sensor)
 
         with self._db.connect() as conn:
-            row = conn.execute(
+            found = fetch_row(
+                conn,
                 f'''
                 SELECT {_COLUMNS} FROM alarms
                 WHERE room = ? AND kind = ? AND IFNULL(metric, '') = ?{clause}
@@ -136,26 +139,27 @@ class SqliteAlarmRepository:
                 ORDER BY started_at DESC LIMIT 1
                 ''',
                 params,
-            ).fetchone()
-        return _to_alarm(row) if row else None
+            )
+        return _to_alarm(found) if found else None
 
     def list_active(self) -> list[Alarm]:
         with self._db.connect() as conn:
-            rows = conn.execute(
-                f'SELECT {_COLUMNS} FROM alarms WHERE ended_at IS NULL ORDER BY started_at DESC'
-            ).fetchall()
-        return [_to_alarm(row) for row in rows]
+            found = fetch_rows(
+                conn, f'SELECT {_COLUMNS} FROM alarms WHERE ended_at IS NULL ORDER BY started_at DESC'
+            )
+        return [_to_alarm(item) for item in found]
 
     def list_since(self, since: datetime.datetime, room: str | None, limit: int) -> list[Alarm]:
         clause = ''
-        params: list[Any] = [to_sql(since)]
+        params: list[SqlValue] = [to_sql(since)]
         if room:
             clause = ' AND room = ?'
             params.append(room)
         params.append(limit)
 
         with self._db.connect() as conn:
-            rows = conn.execute(
+            found = fetch_rows(
+                conn,
                 f'''
                 SELECT {_COLUMNS} FROM alarms
                 WHERE started_at >= ?{clause}
@@ -163,15 +167,15 @@ class SqliteAlarmRepository:
                 LIMIT ?
                 ''',
                 params,
-            ).fetchall()
-        return [_to_alarm(row) for row in rows]
+            )
+        return [_to_alarm(item) for item in found]
 
     def count_since(self, since: datetime.datetime) -> int:
         with self._db.connect() as conn:
-            row = conn.execute(
-                'SELECT COUNT(*) AS total FROM alarms WHERE started_at >= ?', (to_sql(since),)
-            ).fetchone()
-        return int(row['total'])
+            counted = fetch_row(
+                conn, 'SELECT COUNT(*) AS total FROM alarms WHERE started_at >= ?', (to_sql(since),)
+            )
+        return int(counted['total']) if counted else 0
 
     def counts_by_day(
         self,
@@ -187,20 +191,21 @@ class SqliteAlarmRepository:
         """
         first, after = local_days(start, end, tz)
         clause = ''
-        params: list[Any] = [to_sql(first), to_sql(after)]
+        params: list[SqlValue] = [to_sql(first), to_sql(after)]
         if room:
             clause = ' AND room = ?'
             params.append(room)
 
         with self._db.connect() as conn:
-            rows = conn.execute(
+            found = fetch_rows(
+                conn,
                 f'SELECT started_at FROM alarms WHERE started_at >= ? AND started_at < ?{clause}',
                 params,
-            ).fetchall()
+            )
 
         counts: dict[datetime.date, int] = {}
-        for row in rows:
-            started = from_sql(row['started_at'])
+        for item in found:
+            started = from_sql(item['started_at'])
             if started is None:
                 continue
             day = started.astimezone(tz).date()

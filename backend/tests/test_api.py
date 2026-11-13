@@ -1,9 +1,10 @@
-from typing import Any
-
 from flask.testing import FlaskClient
+from werkzeug.test import TestResponse
+
+from hermes.json_types import JsonObject
 
 
-def _post(client: FlaskClient, payload: dict[str, Any]) -> Any:
+def _post(client: FlaskClient, payload: JsonObject) -> TestResponse:
     return client.post('/api/air-quality/data', json=payload)
 
 
@@ -58,6 +59,16 @@ def test_daily_defaults_to_a_two_week_range(client: FlaskClient) -> None:
 
     assert response.status_code == 200
     assert response.get_json()['range'] == {'from': '2026-07-27', 'to': '2026-08-09'}
+
+
+def test_daily_returns_one_row_per_day_with_data(client: FlaskClient) -> None:
+    _post(client, {'room': 'kitchen', 'sensor': 'mq2', 'gas': 38})
+
+    points = client.get('/api/air-quality/daily?room=kitchen&metric=gas').get_json()['data']
+
+    assert len(points) == 1
+    assert points[0]['day'] == '2026-08-09'
+    assert points[0]['resolution'] == 'raw'
 
 
 def test_daily_rejects_a_malformed_date(client: FlaskClient) -> None:

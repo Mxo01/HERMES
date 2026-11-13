@@ -1,5 +1,5 @@
 import sqlite3
-from typing import Any
+from pathlib import Path
 
 import pytest
 
@@ -12,7 +12,7 @@ def _version(path: str) -> int:
         return int(conn.execute('PRAGMA user_version').fetchone()[0])
 
 
-def test_a_fresh_database_lands_on_the_current_schema(tmp_path: Any) -> None:
+def test_a_fresh_database_lands_on_the_current_schema(tmp_path: Path) -> None:
     path = str(tmp_path / 'fresh.db')
     Database(path).migrate()
 
@@ -20,7 +20,7 @@ def test_a_fresh_database_lands_on_the_current_schema(tmp_path: Any) -> None:
 
 
 def test_a_failed_migration_keeps_the_ones_before_it(
-    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Each step is recorded on its own, so a retry resumes instead of replaying."""
     path = str(tmp_path / 'broken.db')

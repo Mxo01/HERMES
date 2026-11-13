@@ -1,38 +1,41 @@
 """Pure validation of inbound node payloads."""
 
 import datetime
-from typing import Any
+from typing import TypeGuard
 
+from ..json_types import as_object
 from . import catalog
 from .errors import ValidationError
 from .models import SensorReading
 
 
-def _is_number(value: Any) -> bool:
+def _is_number(value: object) -> TypeGuard[int | float]:
+    """Narrow to a real number: ``bool`` is an ``int`` subclass, and ``True`` is not a reading."""
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def _normalise(value: Any) -> str:
+def _normalise(value: object) -> str:
     return value.strip().lower() if isinstance(value, str) else ''
 
 
-def parse_reading(payload: Any, recorded_at: datetime.datetime) -> SensorReading:
+def parse_reading(payload: object, recorded_at: datetime.datetime) -> SensorReading:
     """Turn a raw JSON body into a :class:`SensorReading`.
 
     Raises :class:`ValidationError` with one entry per offending field so the
     node firmware gets an actionable response.
     """
-    if not isinstance(payload, dict):
+    data = as_object(payload)
+    if data is None:
         raise ValidationError({'body': 'Request body must be a JSON object'})
 
     errors: dict[str, str] = {}
 
-    room = _normalise(payload.get('room'))
+    room = _normalise(data.get('room'))
     if room not in catalog.SENSOR_ROOMS:
         allowed = ', '.join(sorted(catalog.SENSOR_ROOMS))
         errors['room'] = f'Unknown room. Must be one of: {allowed}'
 
-    sensor = _normalise(payload.get('sensor'))
+    sensor = _normalise(data.get('sensor'))
     if sensor not in catalog.SENSORS:
         allowed = ', '.join(sorted(catalog.SENSORS))
         errors['sensor'] = f'Unknown sensor. Must be one of: {allowed}'
@@ -41,7 +44,7 @@ def parse_reading(payload: Any, recorded_at: datetime.datetime) -> SensorReading
     values: dict[str, float] = {}
     for metric_id in catalog.SENSORS[sensor].metrics:
         spec = catalog.metric(metric_id)
-        raw = payload.get(metric_id)
+        raw = data.get(metric_id)
         if raw is None:
             errors[metric_id] = f'Missing required metric for {sensor}'
         elif not _is_number(raw) or not spec.valid_min <= float(raw) <= spec.valid_max:

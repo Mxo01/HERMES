@@ -1,6 +1,6 @@
 import datetime
 from collections.abc import Iterator
-from typing import Any
+from pathlib import Path
 
 import pytest
 from flask import Flask
@@ -9,6 +9,7 @@ from flask.testing import FlaskClient
 from hermes.api import register_api
 from hermes.config import AlarmSettings, Settings, TelegramSettings, WeatherSettings
 from hermes.container import Services, build_services
+from hermes.json_types import JsonObject
 
 
 class FrozenClock:
@@ -26,9 +27,9 @@ class FrozenClock:
 
 class RecordingPublisher:
     def __init__(self) -> None:
-        self.events: list[tuple[str, dict[str, Any]]] = []
+        self.events: list[tuple[str, JsonObject]] = []
 
-    def publish(self, event: str, payload: dict[str, Any]) -> None:
+    def publish(self, event: str, payload: JsonObject) -> None:
         self.events.append((event, payload))
 
     def names(self) -> list[str]:
@@ -46,7 +47,7 @@ def publisher() -> RecordingPublisher:
 
 
 @pytest.fixture
-def settings(tmp_path: Any) -> Settings:
+def settings(tmp_path: Path) -> Settings:
     return Settings(
         database_path=str(tmp_path / 'test.db'),
         secret_key='test',
@@ -79,16 +80,22 @@ def settings(tmp_path: Any) -> Settings:
 
 
 @pytest.fixture
-def services(settings: Settings, clock: FrozenClock, publisher: RecordingPublisher) -> Services:
+def testSubject(settings: Settings, clock: FrozenClock, publisher: RecordingPublisher) -> Services:
+    """The system under test: the real services, wired as production wires them.
+
+    Only the three things a unit test must never touch for real are replaced —
+    the clock, the broadcaster, and the database file (``settings`` points at
+    ``tmp_path``). Everything else is the code the Pi runs.
+    """
     built = build_services(settings, publisher=publisher, clock=clock)
     built.database.migrate()
     return built
 
 
 @pytest.fixture
-def client(services: Services) -> Iterator[FlaskClient]:
+def client(testSubject: Services) -> Iterator[FlaskClient]:
     app = Flask(__name__)
     app.config['TESTING'] = True
-    register_api(app, services)
+    register_api(app, testSubject)
     with app.test_client() as test_client:
         yield test_client

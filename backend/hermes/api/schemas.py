@@ -5,28 +5,28 @@ concerns, and the wire format can change without touching business rules.
 """
 
 import datetime
-from typing import Any
 
 from ..domain import catalog
 from ..domain.models import Alarm, Coordinates, DailyPoint, HourlyPoint, MetricPoint, NodeStatus
+from ..json_types import JsonObject
 
 
 def iso(value: datetime.datetime | None) -> str | None:
     return value.isoformat() if value else None
 
 
-def metric_point(point: MetricPoint) -> dict[str, Any]:
+def metric_point(point: MetricPoint) -> JsonObject:
     return {'value': point.value, 'timestamp': iso(point.timestamp)}
 
 
-def latest_readings(readings: dict[str, dict[str, MetricPoint]]) -> dict[str, dict[str, Any]]:
+def latest_readings(readings: dict[str, dict[str, MetricPoint]]) -> dict[str, JsonObject]:
     return {
         room: {metric: metric_point(point) for metric, point in metrics.items()}
         for room, metrics in readings.items()
     }
 
 
-def hourly_point(point: HourlyPoint) -> dict[str, Any]:
+def hourly_point(point: HourlyPoint) -> JsonObject:
     return {
         'room': point.room,
         'metric': point.metric,
@@ -38,7 +38,7 @@ def hourly_point(point: HourlyPoint) -> dict[str, Any]:
     }
 
 
-def daily_point(point: DailyPoint) -> dict[str, Any]:
+def daily_point(point: DailyPoint) -> JsonObject:
     return {
         'room': point.room,
         'metric': point.metric,
@@ -52,7 +52,7 @@ def daily_point(point: DailyPoint) -> dict[str, Any]:
     }
 
 
-def alarm(item: Alarm, now: datetime.datetime) -> dict[str, Any]:
+def alarm(item: Alarm, now: datetime.datetime) -> JsonObject:
     return {
         'id': item.id,
         'room': item.room,
@@ -71,7 +71,7 @@ def alarm(item: Alarm, now: datetime.datetime) -> dict[str, Any]:
     }
 
 
-def node_status(node: NodeStatus) -> dict[str, Any]:
+def node_status(node: NodeStatus) -> JsonObject:
     return {
         'room': node.room,
         'sensor': node.sensor,
@@ -82,7 +82,7 @@ def node_status(node: NodeStatus) -> dict[str, Any]:
     }
 
 
-def location(coordinates: Coordinates | None) -> dict[str, Any] | None:
+def location(coordinates: Coordinates | None) -> JsonObject | None:
     if coordinates is None:
         return None
     return {
@@ -93,7 +93,7 @@ def location(coordinates: Coordinates | None) -> dict[str, Any] | None:
     }
 
 
-def metric_spec(spec: catalog.MetricSpec) -> dict[str, Any]:
+def metric_spec(spec: catalog.MetricSpec) -> JsonObject:
     return {
         'id': spec.id,
         'label': spec.label,

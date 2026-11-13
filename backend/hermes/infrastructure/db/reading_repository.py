@@ -7,11 +7,12 @@ rows win, because they are the finer-grained source.
 """
 
 import datetime
-from typing import Any
+import sqlite3
+from typing import TypedDict
 
 from ...domain import catalog
 from ...domain.models import DailyPoint, HourlyPoint, MetricPoint, Resolution
-from .database import Database, from_sql, local_days, to_sql, to_sql_hour
+from .database import Database, SqlValue, fetch_rows, from_sql, local_days, to_sql, to_sql_hour
 
 #: Which board reports a metric — lets us derive per-node liveness from the
 #: metric-shaped ``readings`` table without a redundant column.
@@ -20,6 +21,36 @@ _SENSOR_BY_METRIC: dict[str, str] = {
 }
 
 _AggregateKey = tuple[str, str, str]
+
+
+class _Aggregate(TypedDict):
+    """One hour bucket as SQL returns it: the four numbers the rollup keeps."""
+
+    avg_value: float | None
+    min_value: float | None
+    max_value: float | None
+    reading_count: int | None
+
+
+class _Hour(TypedDict):
+    """An hour bucket placed on its local day, before the days are folded."""
+
+    day: datetime.date
+    raw: bool
+    avg: float
+    min: float
+    max: float
+    count: int
+
+
+class _Day(TypedDict):
+    """Running totals for one local day while the hours are folded in."""
+
+    weighted: float
+    count: int
+    min: float
+    max: float
+    raw: bool
 
 
 class SqliteReadingRepository:
@@ -95,7 +126,8 @@ class SqliteReadingRepository:
     def latest(self, domain: str, rooms: tuple[str, ...]) -> dict[str, dict[str, MetricPoint]]:
         placeholders = ','.join('?' * len(rooms))
         with self._db.connect() as conn:
-            rows = conn.execute(
+            found = fetch_rows(
+                conn,
                 f'''
                 SELECT room, metric, value, timestamp
                 FROM readings
@@ -104,14 +136,16 @@ class SqliteReadingRepository:
                 )
                 ''',
                 (domain, *rooms, domain),
-            ).fetchall()
+            )
 
         latest: dict[str, dict[str, MetricPoint]] = {}
-        for row in rows:
-            timestamp = from_sql(row['timestamp'])
+        for item in found:
+            timestamp = from_sql(item['timestamp'])
             if timestamp is None:
                 continue
-            latest.setdefault(row['room'], {})[row['metric']] = MetricPoint(row['value'], timestamp)
+            latest.setdefault(item['room'], {})[item['metric']] = MetricPoint(
+                item['value'], timestamp
+            )
         return latest
 
     def hourly(
@@ -145,24 +179,37 @@ class SqliteReadingRepository:
         '''
         tail = [ceiling] if ceiling else []
         with self._db.connect() as conn:
-            raw = conn.execute(raw_sql, [domain, floor, *params, *tail]).fetchall()
-            rolled = conn.execute(rolled_sql, [domain, floor, *params, *tail]).fetchall()
+            raw = fetch_rows(conn, raw_sql, [domain, floor, *params, *tail])
+            rolled = fetch_rows(conn, rolled_sql, [domain, floor, *params, *tail])
 
         merged = self._merge(rolled, raw)
         points: list[HourlyPoint] = []
-        for (room_id, metric_id, bucket), row in merged.items():
+        for (room_id, metric_id, bucket), aggregate in merged.items():
             hour = from_sql(bucket)
-            if hour is None:
+            # The aggregate columns are nullable in SQLite, and `_days_from_hours`
+            # already skips a bucket whose average is missing; an hour with no
+            # numbers is not a data point.
+            average = aggregate['avg_value']
+            minimum = aggregate['min_value']
+            maximum = aggregate['max_value']
+            count = aggregate['reading_count']
+            if (
+                hour is None
+                or average is None
+                or minimum is None
+                or maximum is None
+                or count is None
+            ):
                 continue
             points.append(
                 HourlyPoint(
                     room=room_id,
                     metric=metric_id,
                     hour=hour,
-                    avg=row['avg_value'],
-                    min=row['min_value'],
-                    max=row['max_value'],
-                    count=row['reading_count'],
+                    avg=average,
+                    min=minimum,
+                    max=maximum,
+                    count=count,
                 )
             )
         points.sort(key=lambda point: (point.hour, point.room, point.metric))
@@ -216,21 +263,21 @@ class SqliteReadingRepository:
         '''
         args = [domain, floor, ceiling, *params]
         with self._db.connect() as conn:
-            raw = conn.execute(raw_sql, args).fetchall()
-            rolled = conn.execute(rolled_sql, args).fetchall()
+            raw = fetch_rows(conn, raw_sql, args)
+            rolled = fetch_rows(conn, rolled_sql, args)
 
         return self._days_from_hours(rolled, raw, start, end, tz)
 
     @staticmethod
     def _days_from_hours(
-        rolled: list[Any],
-        raw: list[Any],
+        rolled: list[sqlite3.Row],
+        raw: list[sqlite3.Row],
         start: datetime.date,
         end: datetime.date,
         tz: datetime.tzinfo,
     ) -> list[DailyPoint]:
         """Fold hour buckets into local days, raw winning wherever both tables have one."""
-        hours: dict[tuple[str, str, str], dict[str, Any]] = {}
+        hours: dict[tuple[str, str, str], _Hour] = {}
         for source, is_raw in ((rolled, False), (raw, True)):
             for row in source:
                 begins = from_sql(row['bucket'])
@@ -248,7 +295,7 @@ class SqliteReadingRepository:
                     'count': row['reading_count'] or 1,
                 }
 
-        days: dict[tuple[str, str, datetime.date], dict[str, Any]] = {}
+        days: dict[tuple[str, str, datetime.date], _Day] = {}
         for (room_id, metric_id, _), hour in hours.items():
             key = (room_id, metric_id, hour['day'])
             day = days.get(key)
@@ -288,7 +335,8 @@ class SqliteReadingRepository:
 
     def last_seen_per_node(self, domain: str) -> dict[tuple[str, str], datetime.datetime]:
         with self._db.connect() as conn:
-            rows = conn.execute(
+            found = fetch_rows(
+                conn,
                 '''
                 SELECT room, metric, MAX(timestamp) AS last_seen
                 FROM readings
@@ -296,15 +344,15 @@ class SqliteReadingRepository:
                 GROUP BY room, metric
                 ''',
                 (domain,),
-            ).fetchall()
+            )
 
         last_seen: dict[tuple[str, str], datetime.datetime] = {}
-        for row in rows:
-            sensor = _SENSOR_BY_METRIC.get(row['metric'])
-            seen_at = from_sql(row['last_seen'])
+        for item in found:
+            sensor = _SENSOR_BY_METRIC.get(item['metric'])
+            seen_at = from_sql(item['last_seen'])
             if sensor is None or seen_at is None:
                 continue
-            key = (row['room'], sensor)
+            key = (item['room'], sensor)
             if seen_at > last_seen.get(key, seen_at - datetime.timedelta(seconds=1)):
                 last_seen[key] = seen_at
         return last_seen
@@ -312,9 +360,9 @@ class SqliteReadingRepository:
     # --------------------------------------------------------------- helpers
 
     @staticmethod
-    def _filters(room: str | None, metric: str | None) -> tuple[str, list[Any]]:
+    def _filters(room: str | None, metric: str | None) -> tuple[str, list[SqlValue]]:
         clauses = ''
-        params: list[Any] = []
+        params: list[SqlValue] = []
         if room:
             clauses += ' AND room = ?'
             params.append(room)
@@ -324,15 +372,17 @@ class SqliteReadingRepository:
         return clauses, params
 
     @staticmethod
-    def _merge(rolled: list[Any], raw: list[Any]) -> dict[_AggregateKey, dict[str, Any]]:
+    def _merge(
+        rolled: list[sqlite3.Row], raw: list[sqlite3.Row]
+    ) -> dict[_AggregateKey, _Aggregate]:
         """Overlay raw buckets on rolled-up ones, keyed by room/metric/bucket."""
-        merged: dict[_AggregateKey, dict[str, Any]] = {}
+        merged: dict[_AggregateKey, _Aggregate] = {}
         for source in (rolled, raw):
-            for row in source:
-                merged[(row['room'], row['metric'], row['bucket'])] = {
-                    'avg_value': row['avg_value'],
-                    'min_value': row['min_value'],
-                    'max_value': row['max_value'],
-                    'reading_count': row['reading_count'],
+            for item in source:
+                merged[(item['room'], item['metric'], item['bucket'])] = {
+                    'avg_value': item['avg_value'],
+                    'min_value': item['min_value'],
+                    'max_value': item['max_value'],
+                    'reading_count': item['reading_count'],
                 }
         return merged

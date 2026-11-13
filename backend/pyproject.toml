@@ -7,9 +7,26 @@ ignore_missing_imports = true
 check_untyped_defs = true
 disallow_untyped_defs = true
 warn_return_any = true
-exclude = "^(venv|tests)/"
+# Tests are type-checked too: a test with the wrong shape is a test that
+# silently asserts nothing. Only the virtualenv is out of scope.
+exclude = "^venv/"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
 filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+source = ["hermes"]
+# Branch coverage, not just line coverage: an `if` that only ever takes one
+# path is untested, however many lines ran.
+branch = true
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "pragma: no cover",
+]
