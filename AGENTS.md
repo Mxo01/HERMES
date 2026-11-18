@@ -248,10 +248,19 @@ you're testing against.
 
 ### CI / release (`.github/workflows/ci.yml`)
 
-Three independent jobs (backend, frontend, firmware) must pass before a
-`release` job runs (main branch only): it packages `backend/`,
-`frontend/dist/`, and `deploy/` into a checksummed tarball and publishes a
-GitHub release. The Raspberry Pi's `hermes-update.timer` polls for new
+Two triggers, and the jobs they start answer different questions. The `secrets`
+(Secret scan) job runs on every push and every pull request, walking the whole
+history with gitleaks: a secret committed and then removed is still one anybody
+can `git log` out of the repository. The `backend`, `frontend` and `firmware`
+jobs run only for a pull request into `main` — they are the second opinion on a
+branch that already passed `make check` locally. A push to `main` does not test:
+the `dashboard` job runs `npm ci` and `npm run build` in `frontend/` and uploads
+only the `dashboard` artifact.
+
+`release` needs `secrets` and `dashboard` and runs on a merge to `main`, with no
+manual trigger: it takes the uploaded dashboard build as `frontend/dist/`, and
+packages that with `backend/` and `deploy/` into a checksummed tarball and
+publishes a GitHub release. The Raspberry Pi's `hermes-update.timer` polls for new
 releases, verifies the checksum, and does an atomic symlink-swap deploy with
 automatic rollback on a failed health check — see
 [deploy/README.md](deploy/README.md) for the full mechanics. There is no push
@@ -259,8 +268,10 @@ deploy: the Pi always pulls.
 
 ## Testing
 
-`make check` runs the tests, the type checks and the frontend lint/format — it is
-what CI runs, so a green `make check` is the bar for a branch.
+`make check` runs the tests, the type checks and the frontend lint/format. That
+is the first opinion; the same checks are what CI runs on a pull request into
+`main`, and the pull request is the second — a green `make check` before the push
+is still the bar for a branch.
 
 - **The unit under test is `testSubject`.** In `backend/tests/` that is the
   `testSubject` fixture in `conftest.py` (the real services, wired by
