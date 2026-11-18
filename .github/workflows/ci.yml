@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-  workflow_dispatch:
 
 # Least privilege by default: only the release job writes anything, and it asks
 # for the permission itself. A fork's pull request gets a read-only token no
@@ -42,6 +41,7 @@ jobs:
 
   backend:
     name: Backend
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,6 +77,7 @@ jobs:
 
   frontend:
     name: Frontend
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -115,6 +116,7 @@ jobs:
 
   firmware:
     name: Firmware
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -139,9 +141,38 @@ jobs:
           done
           git checkout src/main.cpp
 
+  # main ships, it does not test: the build here is only the artifact the release
+  # packages, so it carries no type check, lint or test step.
+  dashboard:
+    name: Dashboard
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard
+          path: frontend/dist
+          retention-days: 1
+
   release:
     name: Release
-    needs: [secrets, backend, frontend, firmware]
+    needs: [secrets, dashboard]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:

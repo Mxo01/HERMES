@@ -426,7 +426,7 @@ anything.
 
 ```text
 push to main
-  → CI: backend tests (95% branch-coverage gate) · mypy · frontend build · firmware compiled for all 3 nodes
+  → CI: secret scan · dashboard built (tests, mypy, lint and firmware ran on the pull request)
   → release tarball published
   → the Pi's timer notices within ~5 minutes
   → downloads, verifies the checksum, unpacks beside the current release
